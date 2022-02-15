@@ -1,30 +1,26 @@
-mod task;
-
-use crate::task::Task;
+use roxy::task::{ExecResult, Task, ERR_INVALID_COMMAND};
 use std::{
     io::{stdin, stdout},
     process,
 };
 
-type TaskResult = std::result::Result<(), &'static str>;
-
 fn main() {
     let task: Task = match serde_json::from_reader(stdin()) {
         Ok(task) => task,
         Err(err) => {
+            log::error!("Command Error: {}", err);
             if let Err(err) =
-                serde_json::to_writer_pretty(stdout(), &TaskResult::Err("invalid task"))
+                serde_json::to_writer_pretty(stdout(), &ExecResult::Err(ERR_INVALID_COMMAND))
             {
-                eprintln!("{}", err);
-                process::exit(1);
+                log::error!("Serialize Error: {}", err);
             }
-            eprintln!("{}", err);
             process::exit(1);
         }
     };
-    task.execute();
-    if let Err(err) = serde_json::to_writer_pretty(stdout(), &TaskResult::Ok(())) {
-        eprintln!("{}", err);
+
+    let ret = task.execute();
+    if let Err(err) = serde_json::to_writer_pretty(stdout(), &ret) {
+        log::error!("Stdout Error: {}", err);
         process::exit(1);
     }
 }
