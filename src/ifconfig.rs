@@ -1,8 +1,10 @@
-use crate::{list_files, run_command, validate_ipaddress, validate_ipnetworks};
+use crate::{list_files, run_command};
 use anyhow::{anyhow, Result};
+use ipnet::IpNet;
 use pnet::datalink::interfaces;
 use serde_derive::{Deserialize, Serialize};
 use serde_with::serde_as;
+use std::net::IpAddr;
 use std::{
     collections::HashMap,
     fmt,
@@ -65,6 +67,21 @@ pub struct NicOutput {
 }
 
 impl NicOutput {
+    #[must_use]
+    pub fn new(
+        addresses: Option<Vec<String>>,
+        dhcp4: Option<bool>,
+        gateway4: Option<String>,
+        nameservers: Option<Vec<String>>,
+    ) -> Self {
+        NicOutput {
+            addresses,
+            dhcp4,
+            gateway4,
+            nameservers,
+        }
+    }
+
     #[must_use]
     pub fn to(&self) -> Nic {
         let nameservers = if let Some(nm) = &self.nameservers {
@@ -330,6 +347,26 @@ fn load_netplan_yaml(dir: &str) -> Result<NetplanYaml> {
         Ok(n)
     } else {
         Err(anyhow!("Netplan configuration not found!"))
+    }
+}
+
+/// Validate ipv4/ipv6 networks
+/// # Errors
+/// * invalid ip network format
+fn validate_ipnetworks(ipnetwork: &str) -> Result<()> {
+    match ipnetwork.parse::<IpNet>() {
+        Ok(_) => Ok(()),
+        Err(e) => Err(anyhow!("{:?}", e)),
+    }
+}
+
+/// Validate ipv4, ipv6 address
+/// # Errors
+/// * invalid ip address format
+fn validate_ipaddress(ipaddr: &str) -> Result<()> {
+    match ipaddr.parse::<IpAddr>() {
+        Ok(_) => Ok(()),
+        Err(e) => Err(anyhow!("{:?}", e)),
     }
 }
 

@@ -16,7 +16,7 @@ const SSHD_DEFAULT_PORT: u16 = 22;
 /// * fail to open ``/etc/ssh/sshd_config``
 /// * fail to write modified contents to ``/etc/ssh/sshd_config``
 /// * fail to restart sshd service
-pub fn set(port: &str) -> Result<()> {
+pub fn set(port: &str) -> Result<bool> {
     let port = port.parse::<u16>()?;
 
     let contents = fs::read_to_string(SSHD_CONFIG)?;

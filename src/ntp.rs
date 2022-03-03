@@ -15,7 +15,7 @@ const NTP_CONF: &str = "/etc/ntp.conf";
 /// * fail to open /etc/ntp.conf
 /// * fail to write modified contents to /etc/ntp.conf
 /// * fail to restart ntp service
-pub fn set(servers: &[String]) -> Result<()> {
+pub fn set(servers: &[String]) -> Result<bool> {
     let contents = fs::read_to_string(NTP_CONF)?;
     let lines = contents.lines();
     let mut new_contents = String::new();
@@ -78,13 +78,13 @@ pub fn is_active() -> bool {
 /// Enable ntp client service
 /// # Errors
 /// * fail to run systemctl start ntp command
-pub fn enable() -> Result<()> {
+pub fn enable() -> Result<bool> {
     run_command("systemctl", None, &["start", "ntp"])
 }
 
 /// Disable ntp client service
 /// # Errors
 /// * fail to run systemctl stop ntp command
-pub fn disable() -> Result<()> {
+pub fn disable() -> Result<bool> {
     run_command("systemctl", None, &["stop", "ntp"])
 }

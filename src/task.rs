@@ -25,7 +25,7 @@ pub enum SubCommand {
     Update,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub enum Task {
     DiskUsage(String),
     Hostname { cmd: SubCommand, arg: String },
@@ -158,6 +158,13 @@ impl Task {
             }
             SubCommand::Enable => {
                 if ufw::enable().is_ok() {
+                    response(self, OKAY)
+                } else {
+                    Err(ERR_FAIL)
+                }
+            }
+            SubCommand::Init => {
+                if ufw::reset().is_ok() {
                     response(self, OKAY)
                 } else {
                     Err(ERR_FAIL)
