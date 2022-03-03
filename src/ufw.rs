@@ -134,14 +134,14 @@ pub fn delete(args: &[String]) -> Result<()> {
 /// Enable ufw
 /// # Errors
 /// * fail to run ufw enable command
-pub fn enable() -> Result<()> {
+pub fn enable() -> Result<bool> {
     run_command("ufw", None, &["enable"])
 }
 
 /// Disable ufw
 /// # Errors
 /// * fail to run ufw disable command
-pub fn disable() -> Result<()> {
+pub fn disable() -> Result<bool> {
     run_command("ufw", None, &["disable"])
 }
 
@@ -159,6 +159,6 @@ pub fn is_active() -> bool {
 /// `ufw reset` command
 /// # Errors
 /// * fail to run ufw reset command
-pub fn reset() -> Result<()> {
+pub fn reset() -> Result<bool> {
     run_command("ufw", None, &["reset"])
 }

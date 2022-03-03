@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use test_roxy::{run_roxy, NicOutput, Node, NodeRequest, SubCommand};
+use roxy::{run_roxy, NicOutput, Node, NodeRequest, SubCommand};
 
 #[allow(clippy::too_many_lines)]
 fn main() {

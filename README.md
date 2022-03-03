@@ -11,7 +11,7 @@ privilege.
 
 ```text
   OS: AICE OS v1.0.9
-  Product: AICE Security v1.2.0
+  Product: AICE security v1.2.0
 ```
 
 * To control machine, following utilities and files are used

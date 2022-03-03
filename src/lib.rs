@@ -1,35 +1,21 @@
-pub mod hwinfo;
-pub mod ifconfig;
-pub mod ntp;
-pub mod sshd;
-pub mod syslog;
+mod hwinfo;
+mod ifconfig;
+mod ntp;
+mod sshd;
+mod syslog;
 pub mod task;
-pub mod ufw;
+mod ufw;
 
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Local};
-use ipnet::IpNet;
-use std::{fs, net::IpAddr, process::Command};
-
-/// Validate ipv4/ipv6 networks
-/// # Errors
-/// * invalid ip network format
-pub fn validate_ipnetworks(ipnetwork: &str) -> Result<()> {
-    match ipnetwork.parse::<IpNet>() {
-        Ok(_) => Ok(()),
-        Err(e) => Err(anyhow!("{:?}", e)),
-    }
-}
-
-/// Validate ipv4, ipv6 address
-/// # Errors
-/// * invalid ip address format
-pub fn validate_ipaddress(ipaddr: &str) -> Result<()> {
-    match ipaddr.parse::<IpAddr>() {
-        Ok(_) => Ok(()),
-        Err(e) => Err(anyhow!("{:?}", e)),
-    }
-}
+pub use ifconfig::NicOutput;
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use std::io::Write;
+use std::{
+    fs,
+    process::{Command, Stdio},
+};
+pub use task::{SubCommand, Task};
 
 /// Get file list in the specified folder. No recursive into sub folder.
 /// # Errors
@@ -79,12 +65,12 @@ pub fn list_files(
     Ok(files)
 }
 
-pub const DEFAULT_PATH_ENV: &str = "/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/aice/bin";
+const DEFAULT_PATH_ENV: &str = "/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/aice/bin";
 
 /// Run linux command
 /// # Errors
 /// * get error code from executed command
-pub fn run_command(cmd: &str, path: Option<&[&str]>, args: &[&str]) -> Result<()> {
+pub fn run_command(cmd: &str, path: Option<&[&str]>, args: &[&str]) -> Result<bool> {
     let mut cmd = Command::new(cmd);
     let val = if let Some(path) = path {
         let mut temp = DEFAULT_PATH_ENV.to_string();
@@ -104,10 +90,7 @@ pub fn run_command(cmd: &str, path: Option<&[&str]>, args: &[&str]) -> Result<()
     }
 
     match cmd.status() {
-        Ok(status) => {
-            let _r = status.success();
-            Ok(())
-        }
+        Ok(status) => Ok(status.success()),
         Err(e) => Err(anyhow!("{}", e)),
     }
 }
@@ -136,4 +119,139 @@ pub fn run_command_output(cmd: &str, path: Option<&[&str]>, args: &[&str]) -> Op
         }
     }
     None
+}
+
+/// Response message from Roxy to caller
+#[derive(Deserialize, Debug)]
+pub enum TaskResult {
+    Ok(String),
+    Err(String),
+}
+
+/// Types of command to node.
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[allow(dead_code)]
+pub enum Node {
+    DiskUsage,
+    Hostname(SubCommand),
+    Interface(SubCommand),
+    Ntp(SubCommand),
+    PowerOff,
+    Reboot,
+    Service(SubCommand),
+    Sshd(SubCommand),
+    Syslog(SubCommand),
+    Ufw(SubCommand),
+    Uptime,
+    Version(SubCommand),
+}
+
+/// Request message structure between nodes
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct NodeRequest {
+    /// sequence number to distinguish each request for multiple users
+    //seq: i64,
+    /// destination hostname
+    pub host: String,
+    /// destination process name
+    pub process: String,
+    /// command
+    pub kind: Node,
+    /// command arguments
+    pub arg: Vec<u8>,
+}
+
+impl NodeRequest {
+    /// # Arguments
+    /// * cmd<T>: command arguments. T: type of arguments
+    ///
+    /// # Errors
+    /// * fail to serialize command
+    pub fn new<T>(host: &str, process: &str, kind: Node, cmd: T) -> Result<Self>
+    where
+        T: Serialize,
+    {
+        //let seq = Local::now().timestamp_nanos();
+        match bincode::serialize(&cmd) {
+            Ok(arg) => Ok(NodeRequest {
+                //seq,
+                host: host.to_string(),
+                process: process.to_string(),
+                kind,
+                arg,
+            }),
+            Err(e) => Err(anyhow!("Error: {}", e)),
+        }
+    }
+
+    /// # Errors
+    /// * fail to serialize message
+    /// * fail to parse to json
+    pub fn roxy_task(&self) -> Result<String> {
+        let arg = base64::encode(&self.arg);
+        let task = match self.kind {
+            Node::DiskUsage => Task::DiskUsage(arg),
+            Node::Hostname(cmd) => Task::Hostname { cmd, arg },
+            Node::Interface(cmd) => Task::Interface { cmd, arg },
+            Node::Ntp(cmd) => Task::Ntp { cmd, arg },
+            Node::PowerOff => Task::PowerOff(arg),
+            Node::Reboot => Task::Reboot(arg),
+            Node::Service(cmd) => Task::Service { cmd, arg },
+            Node::Sshd(cmd) => Task::Sshd { cmd, arg },
+            Node::Syslog(cmd) => Task::Syslog { cmd, arg },
+            Node::Ufw(cmd) => Task::Ufw { cmd, arg },
+            Node::Uptime => Task::Uptime(arg),
+            Node::Version(cmd) => Task::Version { cmd, arg },
+        };
+        serde_json::to_string(&task).map_err(|_| anyhow!("fail to parse node request to json"))
+    }
+
+    pub fn debug<T>(&self)
+    where
+        T: DeserializeOwned + std::fmt::Debug,
+    {
+        if let Ok(value) = bincode::deserialize::<T>(&self.arg) {
+            println!("DEBUG: Task = {:?}, arg = {:?}", self.kind, value);
+        }
+    }
+}
+
+// TODO: fix the exact path to "roxy"
+/// # Errors
+/// * fail to spawn roxy
+/// * fail to write command to roxy
+/// * invalid json syntax in response message
+/// * base64 decode error for reponse message
+/// * received executtion error from roxy
+pub fn run_roxy<T>(args: &str) -> Result<T>
+where
+    T: serde::de::DeserializeOwned,
+{
+    let mut child = Command::new("roxy")
+        .env(
+            "PATH",
+            "/usr/local/aice/bin:/usr/sbin:/usr/bin:/sbin:/bin:.",
+        )
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()?;
+
+    if let Some(child_stdin) = child.stdin.take().as_mut() {
+        write!(child_stdin, "{}", args)?;
+        // Close stdin to finish and avoid indefinite blocking
+        // drop(child_stdin);
+    } else {
+        return Err(anyhow!("fail to execute command"));
+    }
+
+    let output = child.wait_with_output()?;
+    let output = String::from_utf8_lossy(&output.stdout);
+    match serde_json::from_str::<TaskResult>(&output) {
+        Ok(TaskResult::Ok(x)) => {
+            let decoded = base64::decode(&x).map_err(|_| anyhow!("fail to decode response."))?;
+            Ok(bincode::deserialize::<T>(&decoded)?)
+        }
+        Ok(TaskResult::Err(x)) => Err(anyhow!("{}", x)),
+        Err(e) => Err(anyhow!("fail to parse response. {}", e)),
+    }
 }
