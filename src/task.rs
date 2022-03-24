@@ -95,7 +95,7 @@ impl Task {
             Task::Ufw { cmd, arg: _ } => self.ufw(*cmd),
             Task::Uptime(_) => self.uptime(),
             Task::Version { cmd, arg: _ } => self.version(*cmd),
-            _ => Err(ERR_INVALID_COMMAND),
+            Task::Service { .. } => Err(ERR_INVALID_COMMAND),
         }
     }
 
