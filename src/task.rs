@@ -95,7 +95,10 @@ impl Task {
             Task::Ufw { cmd, arg: _ } => self.ufw(*cmd),
             Task::Uptime(_) => self.uptime(),
             Task::Version { cmd, arg: _ } => self.version(*cmd),
+            #[cfg(any(target_os = "linux"))]
             Task::Service { .. } => Err(ERR_INVALID_COMMAND),
+            #[cfg(not(target_os = "linux"))]
+            _ => Err(ERR_INVALID_COMMAND),
         }
     }
 
