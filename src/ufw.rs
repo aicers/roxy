@@ -125,7 +125,7 @@ pub fn add(args: &[String]) -> Result<()> {
 /// * fail to run ufw delete command
 pub fn delete(args: &[String]) -> Result<()> {
     for rule_id in args {
-        run_command("ufw", None, &["delete", &rule_id.to_string()])?;
+        run_command("ufw", None, &["delete", rule_id])?;
     }
 
     Ok(())
