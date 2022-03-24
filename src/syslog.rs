@@ -29,7 +29,7 @@ pub fn set(remote_addrs: &Option<Vec<String>>) -> Result<bool> {
     if let Some(addrs) = remote_addrs {
         for addr in addrs {
             let _addr = addr
-                .replace("@", "")
+                .replace('@', "")
                 .trim()
                 .parse::<SocketAddr>()
                 .map_err(|e| anyhow!("invalid address: {:?}", e))?;

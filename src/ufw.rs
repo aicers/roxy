@@ -48,7 +48,7 @@ pub fn get() -> Result<Option<AccessLists>> {
                 if let Some(p) = cap.get(1) {
                     let p = p.as_str().to_string();
                     after = after.replace(&p, "");
-                    Some(p.replace("/", ""))
+                    Some(p.replace('/', ""))
                 } else {
                     None
                 }
