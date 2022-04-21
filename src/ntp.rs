@@ -7,11 +7,15 @@ use std::io::Write;
 const NTP_CONF: &str = "/etc/ntp.conf";
 
 /// Set NTP server addresses.
+///
 /// # Example
-/// ```
+///
+/// ```ignore
 /// let ret = ntp::set(&vec!["time.bora.net".to_string(), "time2.kriss.re.kr".to_string()])?;
 /// ```
+///
 /// # Errors
+///
 /// * fail to open /etc/ntp.conf
 /// * fail to write modified contents to /etc/ntp.conf
 /// * fail to restart ntp service

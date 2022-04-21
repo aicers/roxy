@@ -7,11 +7,15 @@ const SSHD_CONFIG: &str = "/etc/ssh/sshd_config";
 const SSHD_DEFAULT_PORT: u16 = 22;
 
 /// Set sshd port.
+///
 /// # Example
-/// ```
+///
+/// ```ignore
 /// let ret = sshd::set("10022")?;
 /// ```
+///
 /// # Errors
+///
 /// * invalid port
 /// * fail to open ``/etc/ssh/sshd_config``
 /// * fail to write modified contents to ``/etc/ssh/sshd_config``
@@ -42,7 +46,9 @@ pub fn set(port: &str) -> Result<bool> {
 }
 
 /// Get sshd port number
+///
 /// # Errors
+///
 /// * fail to open ``/etc/ssh/sshd_config``
 pub fn get() -> Result<u16> {
     let contents = fs::read_to_string(SSHD_CONFIG)?;

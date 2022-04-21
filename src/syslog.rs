@@ -8,8 +8,10 @@ const RSYSLOG_CONF: &str = "/etc/rsyslog.d/50-default.conf";
 const DEFAULT_FACILITY: &str = "user.*";
 
 /// Set or init rsyslog remote servers. Currently the facility is fixed to `user.*`.
+///
 /// # Example
-/// ```
+///
+/// ```ignore
 /// // To set remote addresses:
 /// let cmd = Some(vec![
 ///     "@@192.168.0.205:7500".to_string(), // tcp
@@ -63,8 +65,10 @@ pub fn set(remote_addrs: &Option<Vec<String>>) -> Result<bool> {
 }
 
 /// Get rsyslog remote servers.
+///
 /// # Example
-/// ```
+///
+/// ```ignore
 /// if let Some(addrs) = syslog::get() {
 ///     for (facility, proto, addr) in &addrs {
 ///         println!("facility = {}, proto = {}, dest addr = {}", facility, proto, addr);
