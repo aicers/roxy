@@ -48,8 +48,10 @@ pub fn diskusage() -> Result<Option<(String, String, String, String)>> {
 }
 
 /// Get system uptime. It's joined result for command `uptime -p` and `uptime -s`
+///
 /// # Example
-/// ```
+///
+/// ```ignore
 /// // Result format:
 /// // how long the system has been running (boot: boot up time)
 /// // up 7 weeks, 5 days, 13 hours, 52 minutes (boot: 2021-12-16 23:43:10)
@@ -77,8 +79,10 @@ pub fn uptime() -> Option<String> {
 }
 
 /// Get OS and Product versions. Refer /etc/version
+///
 /// # Example
-/// ```
+///
+/// ```ignore
 /// let (os_ver, product_ver) = hwinfo::get_version();
 /// println!("OS version = {}, Product version = {}", os_ver, product_ver);
 /// ```
@@ -111,13 +115,17 @@ pub fn get_version() -> (String, String) {
 }
 
 /// Set OS or Product version. Refer /etc/version
+///
 /// # Example
-/// ```
+///
+/// ```ignore
 /// hwinfo::set_version(SubCommand::SetOsVersion, "AICE OS v1.0.23").unwrap();
 /// hwinfo::set_version(SubCommand::SetProductVersion, "AICE Security v1.1.99").unwrap();
 /// ```
+///
 /// # Errors
-/// * fail to open or write /etc/version
+///
+/// * fail to open or write `/etc/version`
 pub fn set_version(kind: SubCommand, arg: &str) -> Result<()> {
     let contents = fs::read_to_string(DEFAULT_VERSION_PATH)?;
     let lines = contents.lines();

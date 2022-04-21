@@ -405,11 +405,13 @@ pub fn init(ifname: &str) -> Result<()> {
 /// This command will OVERWRITE all existing setting in the interface if exist.
 ///
 /// # Warning
+///
 /// * if the target interface is not running (cable connected), netplan does not
 ///   set the address to interface. Instead it will just saved it into conf file.
 ///
 /// # Example
-/// ```
+///
+/// ```ignore
 /// // To replace(overwrite) ip address, gateway, nameservers of eno3 interface.
 /// let nic_output = NicOutput::new(
 ///     Some(vec!["192.168.0.205/24".to_string(), "192.168.4.7/24".to_string()]),
@@ -468,8 +470,10 @@ pub fn set(ifname: &str, nic_output: &NicOutput) -> Result<()> {
 }
 
 /// Get interface configurations
+///
 /// # Example
-/// ```
+///
+/// ```ignore
 /// // get all interfaces
 /// let all_interfaces = ifconfig::get(&None)?;
 ///
@@ -497,7 +501,8 @@ pub fn get(ifname: &Option<String>) -> Result<Option<Vec<(String, NicOutput)>>> 
 /// Remove interface or name server or gateway address from the specified interface.
 ///
 /// # Example
-///```
+///
+///```ignore
 /// // to delete interface address "192.168.3.7/24", nameserver "164.124.101.2"
 /// let nic_output = NicOutput::new(
 ///     Some(vec!["192.168.3.7/24".to_string()]),
@@ -507,7 +512,9 @@ pub fn get(ifname: &Option<String>) -> Result<Option<Vec<(String, NicOutput)>>> 
 ///
 /// ifconfig::delete("eno3", &nic_output)?;
 ///```
+///
 /// # Errors
+///
 /// * fail to load /etc/netplan yaml files
 /// * fail to apply the change to system
 /// * interface not found
@@ -527,8 +534,10 @@ pub fn delete(ifname: &str, nic_output: &NicOutput) -> Result<()> {
 }
 
 /// Get interface names starting with the specified prefix
+///
 /// # Example
-/// ```
+///
+/// ```ignore
 /// // get interface names starting with "en"
 /// let names = ifconfig::get_interface_names(&Some("en".to_string()));
 /// ```

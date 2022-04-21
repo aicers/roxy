@@ -6,13 +6,15 @@ pub type AccessLists = Vec<(String, String, String, Option<String>, Option<Strin
 
 /// Get firewall rules. The result of command `ufw status`.
 /// Currently only return IPv4 rules.
+///
 /// # Return
-///     Vec<(Action, From, To, Protocol, Interface)>
-///     * Action: String,        // ALLOW IN, ALLOW OUT, DENY IN, DENY OUT
-///     * From: String,          // Source address, port (or "Any")
-///     * To: String,            // Destination address, port (or "Any")
-///     * Protocol: Option<String>  // Protocol name
-///     * Interface: Option<String> // Interface name
+///
+/// Vec<(Action, From, To, Protocol, Interface)>
+/// * Action: String,        // ALLOW IN, ALLOW OUT, DENY IN, DENY OUT
+/// * From: String,          // Source address, port (or "Any")
+/// * To: String,            // Destination address, port (or "Any")
+/// * Protocol: Option<String>  // Protocol name
+/// * Interface: Option<String> // Interface name
 /*
 $  ufw status
 Status: active
@@ -92,8 +94,10 @@ pub fn get() -> Result<Option<AccessLists>> {
 
 /// Add new rules.
 /// This function execute `ufw add` command internally.
+///
 /// # Example
-/// ```
+///
+/// ```ignore
 /// // UFW rule syntax
 /// // allow|deny [in on <dev>] [from <src>] [to <dst>] [port <port>] [proto <protocol>]
 /// let rules_to_add = vec![
@@ -114,8 +118,10 @@ pub fn add(args: &[String]) -> Result<()> {
 
 /// Remove rules.
 /// This function execute `ufw delete` command internally.
+///
 /// # Example
-/// ```
+///
+/// ```ignore
 /// let rules_to_delete = vec![
 ///     "allow from 203.0.113.101".to_string(),
 ///     "allow from 203.0.113.0/24 proto tcp to any port 22".to_string()];
