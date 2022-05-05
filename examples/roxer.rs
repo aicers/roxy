@@ -256,9 +256,7 @@ where
 {
     let host = "hostname_A";
     if request.host == *host && request.process == "Roxy" {
-        let json = request.roxy_task()?;
-        //println!("DEBUG: json = {}", json);
-        run_roxy::<T>(&json)
+        run_roxy::<T>(&request.to_task())
     } else if request.host == *host && request.process == "Hog" {
         // if I am Hog
         unimplemented!();
