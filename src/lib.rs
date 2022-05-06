@@ -217,13 +217,12 @@ impl NodeRequest {
 ///
 /// # Errors
 ///
-/// * Failure to serialize `task` into JSON
 /// * Failure to spawn roxy
 /// * Failure to write command to roxy
 /// * Invalid json syntax in response message
 /// * base64 decode error for reponse message
 /// * Received execution error from roxy
-pub fn run_roxy<T>(task: &Task) -> Result<T>
+pub fn run_roxy<T>(task: Task) -> Result<T>
 where
     T: serde::de::DeserializeOwned,
 {
@@ -236,12 +235,12 @@ where
         .stdout(Stdio::piped())
         .spawn()?;
 
-    if let Some(child_stdin) = child.stdin.take().as_mut() {
-        serde_json::to_writer(child_stdin, task)?;
-        // Close stdin to finish and avoid indefinite blocking
-        // drop(child_stdin);
+    if let Some(child_stdin) = child.stdin.take() {
+        std::thread::spawn(move || {
+            serde_json::to_writer(child_stdin, &task).expect("`Task` should serialize to JSON");
+        });
     } else {
-        return Err(anyhow!("fail to execute command"));
+        return Err(anyhow!("failed to execute roxy"));
     }
 
     let output = child.wait_with_output()?;
