@@ -10,7 +10,6 @@ use anyhow::{anyhow, Result};
 use chrono::{DateTime, Local};
 pub use ifconfig::NicOutput;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::io::Write;
 use std::{
     fs,
     process::{Command, Stdio},
@@ -184,12 +183,11 @@ impl NodeRequest {
         }
     }
 
-    /// # Errors
-    /// * fail to serialize message
-    /// * fail to parse to json
-    pub fn roxy_task(&self) -> Result<String> {
+    /// Converts `NodeRequest` to `Task`.
+    #[must_use]
+    pub fn to_task(&self) -> Task {
         let arg = base64::encode(&self.arg);
-        let task = match self.kind {
+        match self.kind {
             Node::DiskUsage => Task::DiskUsage(arg),
             Node::Hostname(cmd) => Task::Hostname { cmd, arg },
             Node::Interface(cmd) => Task::Interface { cmd, arg },
@@ -202,8 +200,7 @@ impl NodeRequest {
             Node::Ufw(cmd) => Task::Ufw { cmd, arg },
             Node::Uptime => Task::Uptime(arg),
             Node::Version(cmd) => Task::Version { cmd, arg },
-        };
-        serde_json::to_string(&task).map_err(|_| anyhow!("fail to parse node request to json"))
+        }
     }
 
     pub fn debug<T>(&self)
@@ -217,13 +214,16 @@ impl NodeRequest {
 }
 
 // TODO: fix the exact path to "roxy"
+///
 /// # Errors
-/// * fail to spawn roxy
-/// * fail to write command to roxy
-/// * invalid json syntax in response message
+///
+/// * Failure to serialize `task` into JSON
+/// * Failure to spawn roxy
+/// * Failure to write command to roxy
+/// * Invalid json syntax in response message
 /// * base64 decode error for reponse message
-/// * received executtion error from roxy
-pub fn run_roxy<T>(args: &str) -> Result<T>
+/// * Received execution error from roxy
+pub fn run_roxy<T>(task: &Task) -> Result<T>
 where
     T: serde::de::DeserializeOwned,
 {
@@ -237,7 +237,7 @@ where
         .spawn()?;
 
     if let Some(child_stdin) = child.stdin.take().as_mut() {
-        write!(child_stdin, "{}", args)?;
+        serde_json::to_writer(child_stdin, task)?;
         // Close stdin to finish and avoid indefinite blocking
         // drop(child_stdin);
     } else {
