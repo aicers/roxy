@@ -3,9 +3,16 @@
 Roxy is a root proxy that executes a system command requiring the root
 privilege.
 
-* Roxy should be saved with `setuid` enabled and it's owner and group should be `root`.
-  * `chown root.root roxy`
-  * `chmod u+s roxy`
+* The Roxy binary, `roxy`, should be owned by root with its `setuid` flag set.
+  It should also belong to the same group as the services invoking roxy, e.g.
+  "roxy", and the group should have execute permission. Note that "other" should
+  not have execute permission.
+
+  ```sh
+  chown root:roxy roxy
+  chmod 750 roxy
+  chmod u+s roxy
+  ```
 
 * Version format in `/etc/version` file
 
