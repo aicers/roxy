@@ -256,7 +256,7 @@ where
 {
     let host = "hostname_A";
     if request.host == *host && request.process == "Roxy" {
-        run_roxy::<T>(&request.to_task())
+        run_roxy::<T>(request.to_task())
     } else if request.host == *host && request.process == "Hog" {
         // if I am Hog
         unimplemented!();
