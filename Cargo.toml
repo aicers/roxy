@@ -15,7 +15,7 @@ ipnet = "2.3"
 log = "0.4"
 nix = "0.24"
 openssl = "0.10"
-pnet = "0.30"
+pnet = "0.31"
 regex = "1.5"
 serde = { version = "1", features = ["derive"] }
 serde_derive = "1.0"
