@@ -244,8 +244,7 @@ where
     }
 
     let output = child.wait_with_output()?;
-    let output = String::from_utf8_lossy(&output.stdout);
-    match serde_json::from_str::<TaskResult>(&output) {
+    match serde_json::from_reader::<&[u8], TaskResult>(&output.stdout) {
         Ok(TaskResult::Ok(x)) => {
             let decoded = base64::decode(&x).map_err(|_| anyhow!("fail to decode response."))?;
             Ok(bincode::deserialize::<T>(&decoded)?)
