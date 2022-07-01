@@ -2,8 +2,9 @@ use crate::{run_command_output, task::SubCommand};
 use anyhow::{anyhow, Result};
 use regex::Regex;
 use std::{
+    fmt::Write as FmtWrite,
     fs::{self, File, OpenOptions},
-    io::{Read, Write},
+    io::{Read, Write as IoWrite},
 };
 
 const DATA_PARTITION: &str = "/data";
@@ -69,7 +70,7 @@ pub fn uptime() -> Option<String> {
 
     if let Some(mut output) = run_command_output("uptime", None, &["-s"]) {
         output.pop();
-        status.push_str(&format!(" (boot: {})", output));
+        write!(status, " (boot: {})", output).expect("writing to string should not fail");
     }
     if status.is_empty() {
         None

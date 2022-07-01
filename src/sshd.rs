@@ -1,7 +1,10 @@
 use crate::run_command;
 use anyhow::Result;
-use std::fs::{self, OpenOptions};
-use std::io::Write;
+use std::{
+    fmt::Write as FmtWrite,
+    fs::{self, OpenOptions},
+    io::Write as IoWrite,
+};
 
 const SSHD_CONFIG: &str = "/etc/ssh/sshd_config";
 const SSHD_DEFAULT_PORT: u16 = 22;
@@ -33,7 +36,7 @@ pub fn set(port: &str) -> Result<bool> {
         }
     }
 
-    new_contents.push_str(&format!("Port {}\n", port));
+    writeln!(new_contents, "Port {}", port).expect("writing to string should not fail");
 
     let mut file = OpenOptions::new()
         .write(true)

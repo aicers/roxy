@@ -1,8 +1,11 @@
 use crate::run_command;
 use anyhow::{anyhow, Result};
-use std::fs::{self, OpenOptions};
-use std::io::Write;
-use std::net::SocketAddr;
+use std::{
+    fmt::Write as FmtWrite,
+    fs::{self, OpenOptions},
+    io::Write as IoWrite,
+    net::SocketAddr,
+};
 
 const RSYSLOG_CONF: &str = "/etc/rsyslog.d/50-default.conf";
 const DEFAULT_FACILITY: &str = "user.*";
@@ -50,7 +53,8 @@ pub fn set(remote_addrs: &Option<Vec<String>>) -> Result<bool> {
 
     if let Some(addrs) = remote_addrs {
         for addr in addrs {
-            new_contents.push_str(&format!("{} {}\n", DEFAULT_FACILITY, addr));
+            writeln!(new_contents, "{} {}", DEFAULT_FACILITY, addr)
+                .expect("writing to string should not fail");
         }
     }
 

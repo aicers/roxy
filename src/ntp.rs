@@ -1,8 +1,11 @@
 use crate::{run_command, run_command_output};
 use anyhow::Result;
 use regex::Regex;
-use std::fs::{self, OpenOptions};
-use std::io::Write;
+use std::{
+    fmt::Write as FmtWrite,
+    fs::{self, OpenOptions},
+    io::Write as IoWrite,
+};
 
 const NTP_CONF: &str = "/etc/ntp.conf";
 
@@ -31,7 +34,8 @@ pub fn set(servers: &[String]) -> Result<bool> {
     }
 
     for server in servers {
-        new_contents.push_str(&format!("server {} iburst\n", server));
+        writeln!(new_contents, "server {} iburst", server)
+            .expect("writing to string should not fail");
     }
 
     let mut file = OpenOptions::new()
