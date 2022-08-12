@@ -69,10 +69,10 @@ pub fn get() -> Result<Option<AccessLists>> {
                 None
             };
             let after = re_action.replace_all(&after, ",$a $d,");
-            let v = after.split(',').collect::<Vec<_>>();
-            if let Some(to) = v.get(0) {
-                if let Some(action) = v.get(1) {
-                    if let Some(from) = v.get(2) {
+            let mut values = after.split(',');
+            if let Some(to) = values.next() {
+                if let Some(action) = values.next() {
+                    if let Some(from) = values.next() {
                         ret.push((
                             action.trim().to_string(),
                             from.trim().to_string(),
