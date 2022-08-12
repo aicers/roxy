@@ -27,11 +27,11 @@ pub fn diskusage() -> Result<Option<(String, String, String, String)>> {
         for line in lines {
             if line.starts_with("/dev/") && line.ends_with(DATA_PARTITION) {
                 let after = re.replace_all(line, "$m,$s,$u,$e");
-                let v = after.as_ref().split(',').collect::<Vec<_>>();
-                if let Some(mount) = v.get(0) {
-                    if let Some(size) = v.get(1) {
-                        if let Some(used) = v.get(2) {
-                            if let Some(rate) = v.get(3) {
+                let mut values = after.as_ref().split(',');
+                if let Some(mount) = values.next() {
+                    if let Some(size) = values.next() {
+                        if let Some(used) = values.next() {
+                            if let Some(rate) = values.next() {
                                 return Ok(Some((
                                     (*mount).to_string(),
                                     (*size).to_string(),
