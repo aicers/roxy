@@ -7,62 +7,10 @@ pub mod task;
 mod ufw;
 
 use anyhow::{anyhow, Result};
-use chrono::{DateTime, Local};
 pub use ifconfig::NicOutput;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::{
-    fs,
-    process::{Command, Stdio},
-};
+use std::process::{Command, Stdio};
 pub use task::{SubCommand, Task};
-
-/// Get file list in the specified folder. No recursive into sub folder.
-/// # Errors
-/// * dir is not exist or fail to read dir
-/// * fail to get metadata from file
-/// * fail to get modified time from file
-pub fn list_files(
-    dir: &str,
-    except: Option<&[&str]>,
-    subdir: bool,
-) -> Result<Vec<(u64, String, String)>> {
-    let paths = fs::read_dir(dir)?;
-
-    let mut files = Vec::new();
-    for path in paths.flatten() {
-        let filepath = path.path();
-        let metadata = fs::metadata(&filepath)?;
-        let modified: DateTime<Local> = metadata.modified()?.into();
-
-        if let Some(filename) = path.path().file_name() {
-            if let Some(filename) = filename.to_str() {
-                if metadata.is_file() {
-                    files.push((
-                        metadata.len(),
-                        format!("{}", modified.format("%Y/%m/%d %T")),
-                        filename.to_string(),
-                    ));
-                } else if subdir && metadata.is_dir() {
-                    files.push((0, String::new(), filename.to_string()));
-                    /*
-                    if let Ok(ret) = list_files(filename, except, subdir) {
-                        for (size, modified_time, name) in ret {
-                            files.push((size, modified_time, format!("{}/{}", filename, name)));
-                        }
-                    }
-                    */
-                }
-            }
-        }
-    }
-    if let Some(except) = except {
-        for prefix in except {
-            files.retain(|(_, _, name)| !name.starts_with(prefix));
-        }
-    }
-    files.sort_by(|a, b| a.2.cmp(&b.2));
-    Ok(files)
-}
 
 const DEFAULT_PATH_ENV: &str = "/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/aice/bin";
 
