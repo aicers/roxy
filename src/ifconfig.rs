@@ -3,7 +3,7 @@ use anyhow::{anyhow, Result};
 use chrono::{DateTime, Local};
 use ipnet::IpNet;
 use pnet::datalink::interfaces;
-use serde_derive::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::net::IpAddr;
 use std::{
@@ -68,6 +68,7 @@ pub struct NicOutput {
 }
 
 impl NicOutput {
+    #[allow(unused)] // Used by documentation only
     #[must_use]
     pub fn new(
         addresses: Option<Vec<String>>,
