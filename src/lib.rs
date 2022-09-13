@@ -1,71 +1,267 @@
-mod hwinfo;
-mod ifconfig;
-mod ntp;
-mod sshd;
-mod syslog;
-pub mod task;
-mod ufw;
+pub mod common;
+mod user;
 
 use anyhow::{anyhow, Result};
-pub use ifconfig::NicOutput;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use common::{NicOutput, Node, NodeRequest, SubCommand};
+use serde::Deserialize;
 use std::process::{Command, Stdio};
-pub use task::{SubCommand, Task};
 
-const DEFAULT_PATH_ENV: &str = "/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/aice/bin";
-
-/// Run linux command
+/// Returns usage of the partition mounted on `/data` using command `df -h`
+/// as a tuple of mount point, total size, used size, and used rate.
+///
 /// # Errors
-/// * get error code from executed command
-pub fn run_command(cmd: &str, path: Option<&[&str]>, args: &[&str]) -> Result<bool> {
-    let mut cmd = Command::new(cmd);
-    let val = if let Some(path) = path {
-        let mut temp = DEFAULT_PATH_ENV.to_string();
-        for p in path {
-            temp.push(':');
-            temp.push_str(p);
-        }
-        temp
-    } else {
-        DEFAULT_PATH_ENV.to_string()
-    };
-    cmd.env("PATH", &val);
-    for arg in args {
-        if !arg.is_empty() {
-            cmd.arg(arg);
-        }
-    }
+///
+/// The following errors are possible:
+///
+/// * fail to compile regex
+pub fn disk_usage() -> Result<Option<(String, String, String, String)>> {
+    user::hwinfo::disk_usage()
+}
 
-    match cmd.status() {
-        Ok(status) => Ok(status.success()),
-        Err(e) => Err(anyhow!("{}", e)),
+/// Returns a hostname.
+///
+/// # Errors
+///
+/// The following errors are possible:
+///
+/// * Failed to get a hostname
+pub fn hostname() -> Result<String> {
+    if let Ok(host) = hostname::get() {
+        Ok(host.to_string_lossy().to_string())
+    } else {
+        Err(anyhow!("Failed to get a hostname"))
     }
 }
 
-/// Run linux command and return it's output
+/// Returns how long the system has been running.
 #[must_use]
-pub fn run_command_output(cmd: &str, path: Option<&[&str]>, args: &[&str]) -> Option<String> {
-    let mut cmd = Command::new(cmd);
-    let val = if let Some(path) = path {
-        let mut temp = DEFAULT_PATH_ENV.to_string();
-        for p in path {
-            temp.push(':');
-            temp.push_str(p);
-        }
-        temp
+pub fn uptime() -> Option<String> {
+    user::hwinfo::uptime()
+}
+
+/// Returns a tuple of OS version and product version.
+#[must_use]
+pub fn version() -> (String, String) {
+    user::hwinfo::get_version()
+}
+
+const FAIL_REQUEST: &str = "Failed to create a request";
+
+/// Sets a version for OS.
+///
+/// # Errors
+///
+/// The following errors are possible:
+///
+/// * fail to set version
+/// * unknown subcommand or invalid argument
+/// * Failed to create a request
+pub fn set_os_version(ver: String) -> Result<String> {
+    if let Ok(req) = NodeRequest::new::<String>(Node::Version(SubCommand::SetOsVersion), ver) {
+        run_roxy::<String>(req)
     } else {
-        DEFAULT_PATH_ENV.to_string()
-    };
-    cmd.env("PATH", &val);
-    for arg in args {
-        cmd.arg(arg);
+        Err(anyhow!(FAIL_REQUEST))
     }
-    if let Ok(output) = cmd.output() {
-        if output.status.success() {
-            return Some(String::from_utf8_lossy(&output.stdout).into_owned());
-        }
+}
+
+/// Sets a version for product.
+///
+/// # Errors
+///
+/// The following errors are possible:
+///
+/// * fail to set version
+/// * unknown subcommand or invalid argument
+/// * Failed to create a request
+pub fn set_product_version(ver: String) -> Result<String> {
+    if let Ok(req) = NodeRequest::new::<String>(Node::Version(SubCommand::SetProductVersion), ver) {
+        run_roxy::<String>(req)
+    } else {
+        Err(anyhow!(FAIL_REQUEST))
     }
-    None
+}
+
+/// Sets a hostname.
+///
+/// # Errors
+///
+/// The following errors are possible:
+///
+/// * fail to execute comand
+/// * unknown subcommand or invalid argument
+/// * Failed to create a request
+pub fn set_hostname(host: String) -> Result<String> {
+    if let Ok(req) = NodeRequest::new::<String>(Node::Hostname(SubCommand::Set), host) {
+        run_roxy::<String>(req)
+    } else {
+        Err(anyhow!(FAIL_REQUEST))
+    }
+}
+
+/// Returns tuples of (facilitiy, proto, addr) of syslog servers.
+///
+/// # Errors
+///
+/// The following errors are possible:
+///
+/// * fail to execute comand
+/// * unknown subcommand or invalid argument
+/// * Failed to create a request
+pub fn syslog_servers() -> Result<Option<Vec<(String, String, String)>>> {
+    if let Ok(req) = NodeRequest::new::<Option<String>>(Node::Syslog(SubCommand::Get), None) {
+        run_roxy::<Option<Vec<(String, String, String)>>>(req)
+    } else {
+        Err(anyhow!(FAIL_REQUEST))
+    }
+}
+
+/// Sets syslog servers.
+///
+/// # Errors
+///
+/// The following errors are possible:
+///
+/// * fail to execute command
+/// * unknown subcommand or invalid argument
+/// * Failed to create a request
+pub fn set_syslog_servers(servers: Vec<String>) -> Result<String> {
+    if let Ok(req) = NodeRequest::new::<Vec<String>>(Node::Syslog(SubCommand::Set), servers) {
+        run_roxy::<String>(req)
+    } else {
+        Err(anyhow!(FAIL_REQUEST))
+    }
+}
+
+/// Initiates syslog servers.
+///
+/// # Errors
+///
+/// The following errors are possible:
+///
+/// * fail to execute command
+/// * unknown subcommand or invalid argument
+/// * Failed to create a request
+pub fn init_syslog_servers() -> Result<String> {
+    if let Ok(req) = NodeRequest::new::<Option<String>>(Node::Syslog(SubCommand::Init), None) {
+        run_roxy::<String>(req)
+    } else {
+        Err(anyhow!(FAIL_REQUEST))
+    }
+}
+
+/// Returns the list of interface names.
+///
+/// # Errors
+///
+/// The following errors are possible:
+///
+/// * fail to execute command
+/// * unknown subcommand or invalid argument
+/// * Failed to create a request
+pub fn list_of_interfaces() -> Result<Vec<String>> {
+    if let Ok(req) = NodeRequest::new::<Option<String>>(
+        Node::Interface(SubCommand::List),
+        Some(String::from("en")),
+    ) {
+        run_roxy::<Vec<String>>(req)
+    } else {
+        Err(anyhow!(FAIL_REQUEST))
+    }
+}
+
+/// Returns the setting of an interface.
+///
+/// # Errors
+///
+/// The following errors are possible:
+///
+/// * fail to execute command
+/// * unknown subcommand or invalid argument
+/// * Failed to create a request
+pub fn interface(dev: String) -> Result<Option<Vec<(String, NicOutput)>>> {
+    if let Ok(req) = NodeRequest::new::<Option<String>>(Node::Interface(SubCommand::Get), Some(dev))
+    {
+        run_roxy::<Option<Vec<(String, NicOutput)>>>(req)
+    } else {
+        Err(anyhow!(FAIL_REQUEST))
+    }
+}
+
+/// Returns the settings of all the interfaces.
+///
+/// # Errors
+///
+/// The following errors are possible:
+///
+/// * fail to execute command
+/// * unknown subcommand or invalid argument
+/// * Failed to create a request
+pub fn interfaces() -> Result<Option<Vec<(String, NicOutput)>>> {
+    if let Ok(req) = NodeRequest::new::<Option<String>>(Node::Interface(SubCommand::Get), None) {
+        run_roxy::<Option<Vec<(String, NicOutput)>>>(req)
+    } else {
+        Err(anyhow!(FAIL_REQUEST))
+    }
+}
+
+/// Sets an interface setting.
+///
+/// # Errors
+///
+/// The following errors are possible:
+///
+/// * fail to execute command
+/// * unknown subcommand or invalid argument
+/// * Failed to create a request
+pub fn set_interface(
+    dev: String,
+    addresses: Option<Vec<String>>,
+    dhcp4: Option<bool>,
+    gateway4: Option<String>,
+    nameservers: Option<Vec<String>>,
+) -> Result<String> {
+    let nic = NicOutput::new(addresses, dhcp4, gateway4, nameservers);
+    if let Ok(req) =
+        NodeRequest::new::<(String, NicOutput)>(Node::Interface(SubCommand::Set), (dev, nic))
+    {
+        run_roxy::<String>(req)
+    } else {
+        Err(anyhow!(FAIL_REQUEST))
+    }
+}
+
+/// Reboots the system.
+///
+/// # Errors
+///
+/// The following errors are possible:
+///
+/// * fail to execute command
+/// * unknown subcommand or invalid argument
+/// * Failed to create a request
+pub fn reboot() -> Result<String> {
+    if let Ok(req) = NodeRequest::new::<Option<String>>(Node::Reboot, None) {
+        run_roxy::<String>(req)
+    } else {
+        Err(anyhow!(FAIL_REQUEST))
+    }
+}
+
+/// Turns the system off.
+///
+/// # Errors
+///
+/// The following errors are possible:
+///
+/// * fail to execute command
+/// * unknown subcommand or invalid argument
+/// * Failed to create a request
+pub fn power_off() -> Result<String> {
+    if let Ok(req) = NodeRequest::new::<Option<String>>(Node::PowerOff, None) {
+        run_roxy::<String>(req)
+    } else {
+        Err(anyhow!(FAIL_REQUEST))
+    }
 }
 
 /// Response message from Roxy to caller
@@ -73,92 +269,6 @@ pub fn run_command_output(cmd: &str, path: Option<&[&str]>, args: &[&str]) -> Op
 pub enum TaskResult {
     Ok(String),
     Err(String),
-}
-
-/// Types of command to node.
-#[derive(Debug, Deserialize, Serialize, Clone)]
-#[allow(dead_code)]
-pub enum Node {
-    DiskUsage,
-    Hostname(SubCommand),
-    Interface(SubCommand),
-    Ntp(SubCommand),
-    PowerOff,
-    Reboot,
-    Service(SubCommand),
-    Sshd(SubCommand),
-    Syslog(SubCommand),
-    Ufw(SubCommand),
-    Uptime,
-    Version(SubCommand),
-}
-
-/// Request message structure between nodes
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct NodeRequest {
-    /// sequence number to distinguish each request for multiple users
-    //seq: i64,
-    /// destination hostname
-    pub host: String,
-    /// destination process name
-    pub process: String,
-    /// command
-    pub kind: Node,
-    /// command arguments
-    pub arg: Vec<u8>,
-}
-
-impl NodeRequest {
-    /// # Arguments
-    /// * cmd<T>: command arguments. T: type of arguments
-    ///
-    /// # Errors
-    /// * fail to serialize command
-    pub fn new<T>(host: &str, process: &str, kind: Node, cmd: T) -> Result<Self>
-    where
-        T: Serialize,
-    {
-        //let seq = Local::now().timestamp_nanos();
-        match bincode::serialize(&cmd) {
-            Ok(arg) => Ok(NodeRequest {
-                //seq,
-                host: host.to_string(),
-                process: process.to_string(),
-                kind,
-                arg,
-            }),
-            Err(e) => Err(anyhow!("Error: {}", e)),
-        }
-    }
-
-    /// Converts `NodeRequest` to `Task`.
-    #[must_use]
-    pub fn to_task(&self) -> Task {
-        let arg = base64::encode(&self.arg);
-        match self.kind {
-            Node::DiskUsage => Task::DiskUsage(arg),
-            Node::Hostname(cmd) => Task::Hostname { cmd, arg },
-            Node::Interface(cmd) => Task::Interface { cmd, arg },
-            Node::Ntp(cmd) => Task::Ntp { cmd, arg },
-            Node::PowerOff => Task::PowerOff(arg),
-            Node::Reboot => Task::Reboot(arg),
-            Node::Service(cmd) => Task::Service { cmd, arg },
-            Node::Sshd(cmd) => Task::Sshd { cmd, arg },
-            Node::Syslog(cmd) => Task::Syslog { cmd, arg },
-            Node::Ufw(cmd) => Task::Ufw { cmd, arg },
-            Node::Uptime => Task::Uptime(arg),
-            Node::Version(cmd) => Task::Version { cmd, arg },
-        }
-    }
-
-    pub fn debug<T>(&self)
-    where
-        T: DeserializeOwned + std::fmt::Debug,
-    {
-        if let Ok(value) = bincode::deserialize::<T>(&self.arg) {
-            println!("DEBUG: Task = {:?}, arg = {:?}", self.kind, value);
-        }
-    }
 }
 
 // TODO: fix the exact path to "roxy"
@@ -170,7 +280,7 @@ impl NodeRequest {
 /// * Invalid json syntax in response message
 /// * base64 decode error for reponse message
 /// * Received execution error from roxy
-pub fn run_roxy<T>(task: Task) -> Result<T>
+fn run_roxy<T>(req: NodeRequest) -> Result<T>
 where
     T: serde::de::DeserializeOwned,
 {
@@ -185,7 +295,7 @@ where
 
     if let Some(child_stdin) = child.stdin.take() {
         std::thread::spawn(move || {
-            serde_json::to_writer(child_stdin, &task).expect("`Task` should serialize to JSON");
+            serde_json::to_writer(child_stdin, &req).expect("`Task` should serialize to JSON");
         });
     } else {
         return Err(anyhow!("failed to execute roxy"));

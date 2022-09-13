@@ -1,124 +1,20 @@
-use crate::run_command;
+use super::{run_command, Nic, NicOutput};
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Local};
 use ipnet::IpNet;
 use pnet::datalink::interfaces;
 use serde_derive::{Deserialize, Serialize};
 use serde_with::serde_as;
-use std::net::IpAddr;
 use std::{
     collections::HashMap,
     fmt,
     fs::{self, File, OpenOptions},
     io::{Read, Write},
+    net::IpAddr,
 };
 
 const NETPLAN_PATH: &str = "/etc/netplan";
 const DEFAULT_NETPLAN_YAML: &str = "01-netcfg.yaml";
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct Nic {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    addresses: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    dhcp4: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    gateway4: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    nameservers: Option<HashMap<String, Vec<String>>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    optional: Option<bool>,
-}
-
-impl fmt::Display for Nic {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if let Ok(s) = serde_yaml::to_string(self) {
-            write!(f, "{}", s)
-        } else {
-            Ok(())
-        }
-    }
-}
-
-impl Nic {
-    #[must_use]
-    pub fn new(
-        addresses: Option<Vec<String>>,
-        dhcp4: Option<bool>,
-        gateway4: Option<String>,
-        nameservers: Option<HashMap<String, Vec<String>>>,
-        optional: Option<bool>,
-    ) -> Self {
-        Nic {
-            addresses,
-            dhcp4,
-            gateway4,
-            nameservers,
-            optional,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct NicOutput {
-    addresses: Option<Vec<String>>,
-    dhcp4: Option<bool>,
-    gateway4: Option<String>,
-    nameservers: Option<Vec<String>>,
-}
-
-impl NicOutput {
-    #[must_use]
-    pub fn new(
-        addresses: Option<Vec<String>>,
-        dhcp4: Option<bool>,
-        gateway4: Option<String>,
-        nameservers: Option<Vec<String>>,
-    ) -> Self {
-        NicOutput {
-            addresses,
-            dhcp4,
-            gateway4,
-            nameservers,
-        }
-    }
-
-    #[must_use]
-    pub fn to(&self) -> Nic {
-        let nameservers = if let Some(nm) = &self.nameservers {
-            let mut m = HashMap::new();
-            m.insert("addresses".to_string(), nm.clone());
-            m.insert("search".to_string(), Vec::new());
-            Some(m)
-        } else {
-            None
-        };
-        Nic {
-            addresses: self.addresses.clone(),
-            dhcp4: self.dhcp4,
-            gateway4: self.gateway4.clone(),
-            nameservers,
-            optional: None,
-        }
-    }
-
-    #[must_use]
-    pub fn from(nic: &Nic) -> Self {
-        let nameservers = {
-            if let Some(nm) = &nic.nameservers {
-                nm.get("addresses").cloned()
-            } else {
-                None
-            }
-        };
-        NicOutput {
-            addresses: nic.addresses.clone(),
-            dhcp4: nic.dhcp4,
-            gateway4: nic.gateway4.clone(),
-            nameservers,
-        }
-    }
-}
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 struct Address {

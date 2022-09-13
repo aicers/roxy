@@ -1,7 +1,6 @@
-use crate::{
-    hwinfo,
-    ifconfig::{self, NicOutput},
-    ntp, sshd, syslog, ufw,
+use super::{
+    super::root::{self, ifconfig},
+    NicOutput, SubCommand,
 };
 use anyhow::{anyhow, Result};
 use chrono::Local;
@@ -9,25 +8,8 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::Write;
 
-#[derive(Copy, Clone, Debug, Deserialize, Serialize)]
-pub enum SubCommand {
-    Add,
-    Delete,
-    Disable,
-    Enable,
-    Get,
-    Init,
-    List,
-    Set,
-    SetOsVersion,
-    SetProductVersion,
-    Status,
-    Update,
-}
-
 #[derive(Debug, Deserialize, Serialize)]
 pub enum Task {
-    DiskUsage(String),
     Hostname { cmd: SubCommand, arg: String },
     Interface { cmd: SubCommand, arg: String },
     Ntp { cmd: SubCommand, arg: String },
@@ -37,7 +19,6 @@ pub enum Task {
     Sshd { cmd: SubCommand, arg: String },
     Syslog { cmd: SubCommand, arg: String },
     Ufw { cmd: SubCommand, arg: String },
-    Uptime(String),
     Version { cmd: SubCommand, arg: String },
 }
 
@@ -82,7 +63,6 @@ impl Task {
     pub fn execute(&self) -> ExecResult {
         log_debug(&format!("task {:?}", self));
         match self {
-            Task::DiskUsage(_) => self.diskusage(),
             #[cfg(any(target_os = "linux"))]
             Task::PowerOff(_) => self.poweroff(),
             #[cfg(any(target_os = "linux"))]
@@ -93,7 +73,6 @@ impl Task {
             Task::Sshd { cmd, arg: _ } => self.sshd(*cmd),
             Task::Syslog { cmd, arg: _ } => self.syslog(*cmd),
             Task::Ufw { cmd, arg: _ } => self.ufw(*cmd),
-            Task::Uptime(_) => self.uptime(),
             Task::Version { cmd, arg: _ } => self.version(*cmd),
             #[cfg(any(target_os = "linux"))]
             Task::Service { .. } => Err(ERR_INVALID_COMMAND),
@@ -129,14 +108,14 @@ impl Task {
     fn ufw(&self, cmd: SubCommand) -> ExecResult {
         match cmd {
             SubCommand::Get => {
-                let ret = ufw::get().map_err(|_| ERR_FAIL)?;
+                let ret = root::ufw::get().map_err(|_| ERR_FAIL)?;
                 response(self, ret)
             }
             SubCommand::Add => {
                 let args = self
                     .parse::<Vec<String>>()
                     .map_err(|_| ERR_INVALID_COMMAND)?;
-                if ufw::add(&args).is_ok() {
+                if root::ufw::add(&args).is_ok() {
                     response(self, OKAY)
                 } else {
                     Err(ERR_FAIL)
@@ -146,58 +125,36 @@ impl Task {
                 let args = self
                     .parse::<Vec<String>>()
                     .map_err(|_| ERR_INVALID_COMMAND)?;
-                if ufw::delete(&args).is_ok() {
+                if root::ufw::delete(&args).is_ok() {
                     response(self, OKAY)
                 } else {
                     Err(ERR_FAIL)
                 }
             }
             SubCommand::Disable => {
-                if ufw::disable().is_ok() {
+                if root::ufw::disable().is_ok() {
                     response(self, OKAY)
                 } else {
                     Err(ERR_FAIL)
                 }
             }
             SubCommand::Enable => {
-                if ufw::enable().is_ok() {
+                if root::ufw::enable().is_ok() {
                     response(self, OKAY)
                 } else {
                     Err(ERR_FAIL)
                 }
             }
             SubCommand::Init => {
-                if ufw::reset().is_ok() {
+                if root::ufw::reset().is_ok() {
                     response(self, OKAY)
                 } else {
                     Err(ERR_FAIL)
                 }
             }
-            SubCommand::Status => response(self, ufw::is_active()),
+            SubCommand::Status => response(self, root::ufw::is_active()),
             _ => Err(ERR_INVALID_COMMAND),
         }
-    }
-
-    /// Get disk usage for mount point "/data"
-    /// # Return
-    /// * (String, String, String, String): (mount point, total size, used size, used rate)
-    ///
-    /// # Errors
-    /// * fail to get disk usage for "/data" directory.
-    fn diskusage(&self) -> ExecResult {
-        let ret = hwinfo::diskusage().map_err(|_| ERR_FAIL)?.ok_or(ERR_FAIL)?;
-        response(self, ret)
-    }
-
-    /// Get uptime
-    /// # Return
-    /// * String: boot up time
-    ///
-    /// # Errors
-    /// * fail to get uptime
-    fn uptime(&self) -> ExecResult {
-        let ret = hwinfo::uptime().ok_or(ERR_FAIL)?;
-        response(self, ret)
     }
 
     /// Get or Set version for OS and Product
@@ -209,10 +166,9 @@ impl Task {
     /// * unknown subcommand or invalid argument
     fn version(&self, cmd: SubCommand) -> ExecResult {
         match cmd {
-            SubCommand::Get => response(self, hwinfo::get_version()),
             SubCommand::SetOsVersion | SubCommand::SetProductVersion => {
                 let arg = self.parse::<String>().map_err(|_| ERR_INVALID_COMMAND)?;
-                if hwinfo::set_version(cmd, &arg).is_ok() {
+                if crate::root::hwinfo::set_version(cmd, &arg).is_ok() {
                     response(self, OKAY)
                 } else {
                     Err(ERR_FAIL)
@@ -234,11 +190,11 @@ impl Task {
     fn syslog(&self, cmd: SubCommand) -> ExecResult {
         match cmd {
             SubCommand::Get => {
-                let ret = syslog::get().map_err(|_| ERR_FAIL)?;
+                let ret = root::syslog::get().map_err(|_| ERR_FAIL)?;
                 response(self, ret)
             }
             SubCommand::Init => {
-                if syslog::set(&None).is_ok() {
+                if root::syslog::set(&None).is_ok() {
                     response(self, OKAY)
                 } else {
                     Err(ERR_FAIL)
@@ -249,7 +205,7 @@ impl Task {
                     .parse::<Vec<String>>()
                     .map_err(|_| ERR_INVALID_COMMAND)?;
 
-                if syslog::set(&Some(remote_addrs)).is_ok() {
+                if root::syslog::set(&Some(remote_addrs)).is_ok() {
                     response(self, OKAY)
                 } else {
                     Err(ERR_FAIL)
@@ -359,7 +315,7 @@ impl Task {
     fn sshd(&self, cmd: SubCommand) -> ExecResult {
         match cmd {
             SubCommand::Get => {
-                if let Ok(port) = sshd::get() {
+                if let Ok(port) = root::sshd::get() {
                     response(self, port)
                 } else {
                     Err(ERR_FAIL)
@@ -367,7 +323,7 @@ impl Task {
             }
             SubCommand::Set => {
                 let port = self.parse::<String>().map_err(|_| ERR_INVALID_COMMAND)?;
-                if sshd::set(&port).is_ok() {
+                if root::sshd::set(&port).is_ok() {
                     response(self, OKAY)
                 } else {
                     Err(ERR_FAIL)
@@ -389,21 +345,21 @@ impl Task {
     fn ntp(&self, cmd: SubCommand) -> ExecResult {
         match cmd {
             SubCommand::Get => {
-                if let Ok(ret) = ntp::get() {
+                if let Ok(ret) = root::ntp::get() {
                     response(self, ret)
                 } else {
                     Err(ERR_FAIL)
                 }
             }
             SubCommand::Disable => {
-                if ntp::disable().is_ok() {
+                if root::ntp::disable().is_ok() {
                     response(self, OKAY)
                 } else {
                     Err(ERR_FAIL)
                 }
             }
             SubCommand::Enable => {
-                if ntp::enable().is_ok() {
+                if root::ntp::enable().is_ok() {
                     response(self, OKAY)
                 } else {
                     Err(ERR_FAIL)
@@ -414,13 +370,13 @@ impl Task {
                     .parse::<Vec<String>>()
                     .map_err(|_| ERR_INVALID_COMMAND)?;
 
-                if ntp::set(&servers).is_ok() {
+                if root::ntp::set(&servers).is_ok() {
                     response(self, OKAY)
                 } else {
                     Err(ERR_FAIL)
                 }
             }
-            SubCommand::Status => response(self, ntp::is_active()),
+            SubCommand::Status => response(self, root::ntp::is_active()),
             _ => Err(ERR_INVALID_COMMAND),
         }
     }
