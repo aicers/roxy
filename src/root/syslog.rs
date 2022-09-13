@@ -1,4 +1,4 @@
-use crate::run_command;
+use super::run_command;
 use anyhow::{anyhow, Result};
 use std::{
     fmt::Write as FmtWrite,

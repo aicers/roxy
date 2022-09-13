@@ -1,11 +1,7 @@
-use crate::{run_command_output, task::SubCommand};
-use anyhow::{anyhow, Result};
+use super::run_command_output;
+use anyhow::Result;
 use regex::Regex;
-use std::{
-    fmt::Write as FmtWrite,
-    fs::{self, File, OpenOptions},
-    io::{Read, Write as IoWrite},
-};
+use std::{fmt::Write as FmtWrite, fs::File, io::Read};
 
 const DATA_PARTITION: &str = "/data";
 const DEFAULT_VERSION_STRING: &str = "AICE security";
@@ -18,7 +14,7 @@ const DEFAULT_VERSION_PATH: &str = "/etc/version";
 ///
 /// # Errors
 /// * fail to compile regex
-pub fn diskusage() -> Result<Option<(String, String, String, String)>> {
+pub(crate) fn disk_usage() -> Result<Option<(String, String, String, String)>> {
     if let Some(output) = run_command_output("df", None, &["-h"]) {
         let re = Regex::new(
             r#"(?P<f>[/a-z0-9]+)\s+(?P<s>[0-9\.]+[A-Za-z]+)\s+(?P<u>[0-9\.]+[A-Za-z]*)\s+(?P<a>[0-9\.]+[A-Za-z]*)\s+(?P<e>[0-9]+%)\s+(?P<m>[/a-z0-9]+)"#,
@@ -60,8 +56,7 @@ pub fn diskusage() -> Result<Option<(String, String, String, String)>> {
 ///     println!("uptime = {}", uptime);
 /// }
 /// ```
-#[must_use]
-pub fn uptime() -> Option<String> {
+pub(crate) fn uptime() -> Option<String> {
     let mut status = String::new();
     if let Some(mut output) = run_command_output("uptime", None, &["-p"]) {
         output.pop();
@@ -87,8 +82,7 @@ pub fn uptime() -> Option<String> {
 /// let (os_ver, product_ver) = hwinfo::get_version();
 /// println!("OS version = {}, Product version = {}", os_ver, product_ver);
 /// ```
-#[must_use]
-pub fn get_version() -> (String, String) {
+pub(crate) fn get_version() -> (String, String) {
     let mut os_version = DEFAULT_VERSION_STRING.to_string();
     let mut product_version = DEFAULT_VERSION_STRING.to_string();
     if let Ok(mut file) = File::open(DEFAULT_VERSION_PATH) {
@@ -113,57 +107,4 @@ pub fn get_version() -> (String, String) {
         }
     }
     (os_version, product_version)
-}
-
-/// Set OS or Product version. Refer /etc/version
-///
-/// # Example
-///
-/// ```ignore
-/// hwinfo::set_version(SubCommand::SetOsVersion, "AICE OS v1.0.23").unwrap();
-/// hwinfo::set_version(SubCommand::SetProductVersion, "AICE Security v1.1.99").unwrap();
-/// ```
-///
-/// # Errors
-///
-/// * fail to open or write `/etc/version`
-pub fn set_version(kind: SubCommand, arg: &str) -> Result<()> {
-    let contents = fs::read_to_string(DEFAULT_VERSION_PATH)?;
-    let lines = contents.lines();
-    let mut new_contents = String::new();
-    for line in lines {
-        match kind {
-            SubCommand::SetOsVersion => {
-                if line.to_lowercase().starts_with("os:") {
-                    continue;
-                }
-            }
-            SubCommand::SetProductVersion => {
-                if line.to_lowercase().starts_with("product:") {
-                    continue;
-                }
-            }
-            _ => return Err(anyhow!("invalid command")),
-        }
-
-        new_contents.push_str(line);
-        new_contents.push('\n');
-    }
-
-    let new_version = match kind {
-        SubCommand::SetOsVersion => format!("OS: {}", arg),
-        SubCommand::SetProductVersion => format!("Product: {}", arg),
-        _ => return Err(anyhow!("invalid command")),
-    };
-
-    new_contents.push_str(&new_version);
-    new_contents.push('\n');
-
-    let mut file = OpenOptions::new()
-        .write(true)
-        .truncate(true)
-        .open(DEFAULT_VERSION_PATH)?;
-
-    file.write_all(new_contents.as_bytes())?;
-    Ok(())
 }

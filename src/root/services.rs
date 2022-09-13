@@ -1,4 +1,6 @@
-use crate::{run_command, run_command_output};
+// TODO: remove the below when proper codes are written
+#![allow(dead_code)]
+use super::{run_command, run_command_output};
 use anyhow::{anyhow, Result};
 use std::{
     net::{IpAddr, SocketAddr, TcpStream},
@@ -12,7 +14,7 @@ const AICE_SERVICES: [&str; 6] = ["zeek", "reconverge", "review", "hog", "peek",
 /// Start service
 /// # Errors
 /// * fail to execute command
-pub fn start(service: &str) -> Result<()> {
+pub fn start(service: &str) -> Result<bool> {
     run_command("systemctl", None, &["start", service])
 }
 
@@ -20,7 +22,7 @@ pub fn start(service: &str) -> Result<()> {
 /// # Errors
 /// # Errors
 /// * fail to execute command
-pub fn stop(service: &str) -> Result<()> {
+pub fn stop(service: &str) -> Result<bool> {
     run_command("systemctl", None, &["stop", service])
 }
 
@@ -28,7 +30,7 @@ pub fn stop(service: &str) -> Result<()> {
 /// # Errors
 /// # Errors
 /// * fail to execute command
-pub fn restart(service: &str) -> Result<()> {
+pub fn restart(service: &str) -> Result<bool> {
     run_command("systemctl", None, &["restart", service])
 }
 
@@ -37,7 +39,7 @@ pub fn restart(service: &str) -> Result<()> {
 /// * `systemctl` command not found
 /// * `cmd` is not one of `start`, `status`, `stop`
 /// * command execution error
-fn service_control(service: &str, cmd: &str) -> Result<()> {
+fn service_control(service: &str, cmd: &str) -> Result<bool> {
     if !AICE_SERVICES.contains(&service) {
         return Err(anyhow!("Unknown service name"));
     }
