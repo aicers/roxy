@@ -166,7 +166,7 @@ impl NicOutput {
     }
 }
 
-/// Runs linux command and return it's output
+/// Runs linux command and return its output
 #[must_use]
 pub fn run_command_output(cmd: &str, path: Option<&[&str]>, args: &[&str]) -> Option<String> {
     let mut cmd = Command::new(cmd);
