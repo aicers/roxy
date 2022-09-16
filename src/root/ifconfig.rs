@@ -48,7 +48,7 @@ struct Network {
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct NetplanYaml {
+pub(crate) struct NetplanYaml {
     network: Network,
 }
 
@@ -63,11 +63,7 @@ impl fmt::Display for NetplanYaml {
 }
 
 impl NetplanYaml {
-    /// # Errors
-    /// * fail to open netplan yaml file
-    /// * fail to read yaml file
-    /// * fail to parse yaml file
-    pub fn new(path: &str) -> Result<Self> {
+    fn new(path: &str) -> Result<Self> {
         let mut f = File::open(path)?;
         let mut buf = String::new();
         f.read_to_string(&mut buf)?;
@@ -77,9 +73,8 @@ impl NetplanYaml {
         }
     }
 
-    /// merge two yaml conf into one
-    /// The merged conf will applied to system when save() is called.
-    pub fn merge(&mut self, newyml: Self) {
+    // Merges two yaml conf into one. The merged conf will applied to system when save() is called.
+    fn merge(&mut self, newyml: Self) {
         if newyml.network.version.is_some() {
             self.network.version = newyml.network.version;
         }
@@ -108,8 +103,8 @@ impl NetplanYaml {
         }
     }
 
-    /// apply() should be run to apply this change.
-    pub fn set_interface(&mut self, ifname: &str, new_if: Nic) {
+    // apply() should be run to apply this change.
+    fn set_interface(&mut self, ifname: &str, new_if: Nic) {
         if let Some(item) = self.network.ethernets.iter_mut().find(|x| x.0 == *ifname) {
             item.1 = new_if;
         } else {
@@ -118,21 +113,15 @@ impl NetplanYaml {
         }
     }
 
-    /// apply() should be run to apply this change.
-    pub fn init_interface(&mut self, ifname: &str) {
+    // apply() should be run to apply this change.
+    fn init_interface(&mut self, ifname: &str) {
         let new_if = Nic::new(None, None, None, None, None);
         Self::set_interface(self, ifname, new_if);
     }
 
-    /// Remove interface address, gateway4, nameservers.
-    /// apply() should be run to apply this change.
-    ///
-    /// # Recommendation:
-    /// * use use set() command instead of delete() if possible
-    ///
-    /// # Errors
-    /// * interface not found
-    pub fn delete(&mut self, ifname: &str, nic_output: &NicOutput) -> Result<()> {
+    // Removes interface address, gateway4, nameservers. apply() should be run to apply this change.
+    // Use set() command instead of delete() if possible
+    fn delete(&mut self, ifname: &str, nic_output: &NicOutput) -> Result<()> {
         let ifs = if let Some((_, ifs)) = self
             .network
             .ethernets
@@ -176,16 +165,17 @@ impl NetplanYaml {
     //     0
     // }
 
-    /// save conf to netplan yaml file, and apply it to system.
-    /// merge all yaml files under /etc/netplan folder
-    /// # Errors
-    /// * fail to get /etc/netplan yaml files
-    /// * fail to create or write temporary yaml file in /tmp
-    /// * fail to copy yaml file from /tmp to /etc/netplan
-    /// * fail to remove temporary file
-    /// * fail to remove /etc/netplan files except the first yaml file
-    /// * fail to run netplan apply command
-    pub fn apply(&self, dir: &str) -> Result<()> {
+    // Saves conf to netplan yaml file, and apply it to system. Merges all yaml files under /etc/netplan folder.
+    //
+    // The following errors are possible:
+    //
+    // * fail to get /etc/netplan yaml files
+    // * fail to create or write temporary yaml file in /tmp
+    // * fail to copy yaml file from /tmp to /etc/netplan
+    // * fail to remove temporary file
+    // * fail to remove /etc/netplan files except the first yaml file
+    // * fail to run netplan apply command
+    fn apply(&self, dir: &str) -> Result<()> {
         let files = match list_files(dir, None, false) {
             Ok(r) => r,
             Err(e) => return Err(e),
@@ -222,12 +212,13 @@ impl NetplanYaml {
     }
 }
 
-/// get all interface settings
-/// get all netplan yaml conf from /etc/netplan and merge it into one.
-/// # Errors
-/// * fail to get yaml files from the /etc/netplan
-/// * fail to parse yaml file
-/// * yaml file not found
+// Gets all interface settings. Gets all netplan yaml conf from /etc/netplan and merge it into one.
+//
+// The following errors are possible:
+//
+// * fail to get yaml files from the /etc/netplan
+// * fail to parse yaml file
+// * yaml file not found
 fn load_netplan_yaml(dir: &str) -> Result<NetplanYaml> {
     let files = list_files(dir, None, false)?;
     let mut netplan: Option<NetplanYaml> = None;
@@ -247,9 +238,6 @@ fn load_netplan_yaml(dir: &str) -> Result<NetplanYaml> {
     }
 }
 
-/// Validate ipv4/ipv6 networks
-/// # Errors
-/// * invalid ip network format
 fn validate_ipnetworks(ipnetwork: &str) -> Result<()> {
     match ipnetwork.parse::<IpNet>() {
         Ok(_) => Ok(()),
@@ -257,9 +245,6 @@ fn validate_ipnetworks(ipnetwork: &str) -> Result<()> {
     }
 }
 
-/// Validate ipv4, ipv6 address
-/// # Errors
-/// * invalid ip address format
 fn validate_ipaddress(ipaddr: &str) -> Result<()> {
     match ipaddr.parse::<IpAddr>() {
         Ok(_) => Ok(()),
@@ -267,18 +252,18 @@ fn validate_ipaddress(ipaddr: &str) -> Result<()> {
     }
 }
 
-/// Initialize interface.
-///
-/// Be careful!. Netplan may remove address only in the yaml file.
-/// The addresess cab be remained in the running interface after netplan apply.
-/// To avoid this case, this function execute ifconfig system command internally.
-///
-/// # Errors
-/// * interface name not found
-/// * fail to load /etc/netplan yaml files
-/// * fail to execute netplan apply
-/// * fail to ifconfig command
-pub fn init(ifname: &str) -> Result<()> {
+// Initializes an interface.
+//
+// Be careful!. Netplan may remove address only in the yaml file.
+// The addresess cab be remained in the running interface after netplan apply.
+// To avoid this case, this function execute ifconfig system command internally.
+//
+// Possible errors:
+// * interface name not found
+// * fail to load /etc/netplan yaml files
+// * fail to execute netplan apply
+// * fail to ifconfig command
+pub(crate) fn init(ifname: &str) -> Result<()> {
     let mut netplan = load_netplan_yaml(NETPLAN_PATH)?;
     let all_interfaces = interfaces();
     for iface in all_interfaces {
@@ -298,31 +283,26 @@ pub fn init(ifname: &str) -> Result<()> {
     Err(anyhow!("interface \"{}\" not found.", ifname))
 }
 
-/// Set interface ip address or gateway address or nameservers.
-/// This command will OVERWRITE all existing setting in the interface if exist.
-///
-/// # Warning
-///
-/// * if the target interface is not running (cable connected), netplan does not
-///   set the address to interface. Instead it will just saved it into conf file.
-///
-/// # Example
-///
-/// ```ignore
-/// // To replace(overwrite) ip address, gateway, nameservers of eno3 interface.
-/// let nic_output = NicOutput::new(
-///     Some(vec!["192.168.0.205/24".to_string(), "192.168.4.7/24".to_string()]),
-///     None,
-///     Some("192.168.0.1".to_string()),
-///     Some(vec!["164.124.101.1".to_string(), "164.124.101.2".to_string()])
-/// );
-/// ifconfig::set("eno3", &nic_output)?;
-/// ```
-/// # Errors
-/// * fail to get or save, apply netplan yaml conf
-/// * dhcp4 and static ip address or nameserver address is set in same interface
-/// * try to set new gateway address when other interface already have the gateway
-pub fn set(ifname: &str, nic_output: &NicOutput) -> Result<()> {
+// Sets interface ip address or gateway address or nameservers.
+// This command will OVERWRITE all existing setting in the interface if exist.
+//
+// If the target interface is not running (cable connected), netplan does not
+// set the address to interface. Instead it will just saved it into conf file.
+//
+// To replace(overwrite) ip address, gateway, nameservers of eno3 interface:
+// let nic_output = NicOutput::new(
+//     Some(vec!["192.168.0.205/24".to_string(), "192.168.4.7/24".to_string()]),
+//     None,
+//     Some("192.168.0.1".to_string()),
+//     Some(vec!["164.124.101.1".to_string(), "164.124.101.2".to_string()])
+// );
+// ifconfig::set("eno3", &nic_output)?;
+//
+// Possible errors:
+// * fail to get or save, apply netplan yaml conf
+// * dhcp4 and static ip address or nameserver address is set in same interface
+// * try to set new gateway address when other interface already have the gateway
+pub(crate) fn set(ifname: &str, nic_output: &NicOutput) -> Result<()> {
     let mut netplan = load_netplan_yaml(NETPLAN_PATH)?;
 
     if let Some(addrs) = &nic_output.addresses {
@@ -366,20 +346,16 @@ pub fn set(ifname: &str, nic_output: &NicOutput) -> Result<()> {
     Ok(())
 }
 
-/// Get interface configurations
-///
-/// # Example
-///
-/// ```ignore
-/// // get all interfaces
-/// let all_interfaces = ifconfig::get(&None)?;
-///
-/// // get "eno1" interface
-/// let eno1_interface = ifconfig::get(&Some("eno1".to_string()))?;
-/// ```
-/// # Errors
-/// * fail to load /etc/netplan yaml files
-pub fn get(ifname: &Option<String>) -> Result<Option<Vec<(String, NicOutput)>>> {
+// Gets interface configurations
+//
+// To get all interfaces:
+// let all_interfaces = ifconfig::get(&None)?;
+//
+// To get "eno1" interface:
+// let eno1_interface = ifconfig::get(&Some("eno1".to_string()))?;
+//
+// Error: fail to load /etc/netplan yaml files
+pub(crate) fn get(ifname: &Option<String>) -> Result<Option<Vec<(String, NicOutput)>>> {
     let netplan = load_netplan_yaml(NETPLAN_PATH)?;
     if let Some(name) = ifname {
         if let Some((_, nic)) = netplan.network.ethernets.iter().find(|(x, _)| *x == *name) {
@@ -395,27 +371,22 @@ pub fn get(ifname: &Option<String>) -> Result<Option<Vec<(String, NicOutput)>>> 
     Ok(None)
 }
 
-/// Remove interface or name server or gateway address from the specified interface.
-///
-/// # Example
-///
-///```ignore
-/// // to delete interface address "192.168.3.7/24", nameserver "164.124.101.2"
-/// let nic_output = NicOutput::new(
-///     Some(vec!["192.168.3.7/24".to_string()]),
-///     None,
-///     None,
-///     Some(vec!["164.124.101.2".to_string()]),);
-///
-/// ifconfig::delete("eno3", &nic_output)?;
-///```
-///
-/// # Errors
-///
-/// * fail to load /etc/netplan yaml files
-/// * fail to apply the change to system
-/// * interface not found
-pub fn delete(ifname: &str, nic_output: &NicOutput) -> Result<()> {
+// Removes interface or name server or gateway address from the specified interface.
+//
+// To delete interface address "192.168.3.7/24", nameserver "164.124.101.2":
+// let nic_output = NicOutput::new(
+//     Some(vec!["192.168.3.7/24".to_string()]),
+//     None,
+//     None,
+//     Some(vec!["164.124.101.2".to_string()]),);
+//
+// ifconfig::delete("eno3", &nic_output)?;
+//
+// Possible errors:
+// * fail to load /etc/netplan yaml files
+// * fail to apply the change to system
+// * interface not found
+pub(crate) fn delete(ifname: &str, nic_output: &NicOutput) -> Result<()> {
     let mut netplan = load_netplan_yaml(NETPLAN_PATH)?;
     netplan.delete(ifname, nic_output)?;
     netplan.apply(NETPLAN_PATH)?;
@@ -430,16 +401,11 @@ pub fn delete(ifname: &str, nic_output: &NicOutput) -> Result<()> {
     Ok(())
 }
 
-/// Get interface names starting with the specified prefix
-///
-/// # Example
-///
-/// ```ignore
-/// // get interface names starting with "en"
-/// let names = ifconfig::get_interface_names(&Some("en".to_string()));
-/// ```
+// Gets interface names starting with the specified prefix.
+// To get interface names starting with "en":
+// let names = ifconfig::get_interface_names(&Some("en".to_string()));
 #[must_use]
-pub fn get_interface_names(arg: &Option<String>) -> Vec<String> {
+pub(crate) fn get_interface_names(arg: &Option<String>) -> Vec<String> {
     let mut nics = interfaces();
     if let Some(prefix) = arg {
         nics.retain(|f| f.name.starts_with(prefix));
@@ -447,11 +413,11 @@ pub fn get_interface_names(arg: &Option<String>) -> Vec<String> {
     nics.iter().map(|f| f.name.clone()).collect()
 }
 
-/// Gets file list in the specified folder. No recursive into sub folder.
-/// # Errors
-/// * dir is not exist or fail to read dir
-/// * fail to get metadata from file
-/// * fail to get modified time from file
+// Gets file list in the specified folder. No recursive into sub folder.
+// Possible errors:
+// * dir is not exist or fail to read dir
+// * fail to get metadata from file
+// * fail to get modified time from file
 fn list_files(
     dir: &str,
     except: Option<&[&str]>,

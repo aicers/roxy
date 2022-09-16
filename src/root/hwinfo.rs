@@ -8,18 +8,6 @@ use std::{
 // TODO: should change this path to /usr/local/aice/conf/version?
 const DEFAULT_VERSION_PATH: &str = "/etc/version";
 
-/// Sets OS or Product version. Refer /etc/version
-///
-/// # Example
-///
-/// ```ignore
-/// hwinfo::set_version(SubCommand::SetOsVersion, "AICE OS v1.0.23").unwrap();
-/// hwinfo::set_version(SubCommand::SetProductVersion, "AICE Security v1.1.99").unwrap();
-/// ```
-///
-/// # Errors
-///
-/// * fail to open or write `/etc/version`
 pub(crate) fn set_version(kind: SubCommand, arg: &str) -> Result<()> {
     let contents = fs::read_to_string(DEFAULT_VERSION_PATH)?;
     let lines = contents.lines();

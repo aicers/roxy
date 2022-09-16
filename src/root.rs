@@ -11,9 +11,6 @@ use super::common::{run_command_output, Nic, NicOutput, SubCommand, DEFAULT_PATH
 use anyhow::{anyhow, Result};
 use std::process::Command;
 
-/// Runs linux command
-/// # Errors
-/// * get error code from executed command
 fn run_command(cmd: &str, path: Option<&[&str]>, args: &[&str]) -> Result<bool> {
     let mut cmd = Command::new(cmd);
     let val = if let Some(path) = path {

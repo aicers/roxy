@@ -9,20 +9,18 @@ use std::{
 
 const NTP_CONF: &str = "/etc/ntp.conf";
 
-/// Set NTP server addresses.
-///
-/// # Example
-///
-/// ```ignore
-/// let ret = ntp::set(&vec!["time.bora.net".to_string(), "time2.kriss.re.kr".to_string()])?;
-/// ```
-///
-/// # Errors
-///
-/// * fail to open /etc/ntp.conf
-/// * fail to write modified contents to /etc/ntp.conf
-/// * fail to restart ntp service
-pub fn set(servers: &[String]) -> Result<bool> {
+// Set NTP server addresses.
+//
+// # Example
+//
+// let ret = ntp::set(&vec!["time.bora.net".to_string(), "time2.kriss.re.kr".to_string()])?;
+//
+// # Errors
+//
+// * fail to open /etc/ntp.conf
+// * fail to write modified contents to /etc/ntp.conf
+// * fail to restart ntp service
+pub(crate) fn set(servers: &[String]) -> Result<bool> {
     let contents = fs::read_to_string(NTP_CONF)?;
     let lines = contents.lines();
     let mut new_contents = String::new();
@@ -48,10 +46,12 @@ pub fn set(servers: &[String]) -> Result<bool> {
     run_command("systemctl", None, &["restart", "ntp"])
 }
 
-/// Get ntp server addresses.
-/// # Errors
-/// * fail to open /etc/ntp.conf
-pub fn get() -> Result<Option<Vec<String>>> {
+// Get ntp server addresses.
+//
+// # Errors
+//
+// * fail to open /etc/ntp.conf
+pub(crate) fn get() -> Result<Option<Vec<String>>> {
     let re = Regex::new(r#"server\s+([a-z0-9\.]+)\s+iburst"#)?;
     let contents = fs::read_to_string(NTP_CONF)?;
     let lines = contents.lines();
@@ -73,9 +73,9 @@ pub fn get() -> Result<Option<Vec<String>>> {
     }
 }
 
-/// True if ntp is active
+// True if ntp is active
 #[must_use]
-pub fn is_active() -> bool {
+pub(crate) fn is_active() -> bool {
     if let Some(output) = run_command_output("systemctl", None, &["is-active", "ntp"]) {
         output == "active"
     } else {
@@ -83,16 +83,20 @@ pub fn is_active() -> bool {
     }
 }
 
-/// Enable ntp client service
-/// # Errors
-/// * fail to run systemctl start ntp command
-pub fn enable() -> Result<bool> {
+// Enable ntp client service
+//
+// # Errors
+//
+// * fail to run systemctl start ntp command
+pub(crate) fn enable() -> Result<bool> {
     run_command("systemctl", None, &["start", "ntp"])
 }
 
-/// Disable ntp client service
-/// # Errors
-/// * fail to run systemctl stop ntp command
-pub fn disable() -> Result<bool> {
+// Disable ntp client service
+//
+// # Errors
+//
+// * fail to run systemctl stop ntp command
+pub(crate) fn disable() -> Result<bool> {
     run_command("systemctl", None, &["stop", "ntp"])
 }

@@ -11,9 +11,8 @@ use std::process::{Command, Stdio};
 ///
 /// # Errors
 ///
-/// The following errors are possible:
-///
-/// * fail to compile regex
+/// If `Regex` fails to compile a given regular expression,
+/// then an error is returned.
 pub fn disk_usage() -> Result<Option<(String, String, String, String)>> {
     user::hwinfo::disk_usage()
 }
@@ -22,9 +21,7 @@ pub fn disk_usage() -> Result<Option<(String, String, String, String)>> {
 ///
 /// # Errors
 ///
-/// The following errors are possible:
-///
-/// * Failed to get a hostname
+/// If `hostname::get` fails, then an error is returned.
 pub fn hostname() -> Result<String> {
     if let Ok(host) = hostname::get() {
         Ok(host.to_string_lossy().to_string())
@@ -53,9 +50,14 @@ const FAIL_REQUEST: &str = "Failed to create a request";
 ///
 /// The following errors are possible:
 ///
-/// * fail to set version
-/// * unknown subcommand or invalid argument
-/// * Failed to create a request
+/// * If serialization of command arguments does not succeed, then an error
+///   is returned.
+/// * If spawning the roxy executable fails, then an error is returned.
+/// * If delivering a command to roxy fails, then an error is returned.
+/// * If a response message from roxy is invalid regarding JSON syntax or
+///   is not successfully base64-decoded, then an error is returned.
+/// * If reading or writing of an OS version file fails, then an error
+///   is returned.
 pub fn set_os_version(ver: String) -> Result<String> {
     if let Ok(req) = NodeRequest::new::<String>(Node::Version(SubCommand::SetOsVersion), ver) {
         run_roxy::<String>(req)
@@ -68,11 +70,14 @@ pub fn set_os_version(ver: String) -> Result<String> {
 ///
 /// # Errors
 ///
-/// The following errors are possible:
-///
-/// * fail to set version
-/// * unknown subcommand or invalid argument
-/// * Failed to create a request
+/// * If serialization of command arguments does not succeed, then an error
+///   is returned.
+/// * If spawning the roxy executable fails, then an error is returned.
+/// * If delivering a command to roxy fails, then an error is returned.
+/// * If a response message from roxy is invalid regarding JSON syntax or
+///   is not successfully base64-decoded, then an error is returned.
+/// * If reading or writing of a product version file fails, then an error
+///   is returned.
 pub fn set_product_version(ver: String) -> Result<String> {
     if let Ok(req) = NodeRequest::new::<String>(Node::Version(SubCommand::SetProductVersion), ver) {
         run_roxy::<String>(req)
@@ -85,11 +90,13 @@ pub fn set_product_version(ver: String) -> Result<String> {
 ///
 /// # Errors
 ///
-/// The following errors are possible:
-///
-/// * fail to execute comand
-/// * unknown subcommand or invalid argument
-/// * Failed to create a request
+/// * If serialization of command arguments does not succeed, then an error
+///   is returned.
+/// * If spawning the roxy executable fails, then an error is returned.
+/// * If delivering a command to roxy fails, then an error is returned.
+/// * If a response message from roxy is invalid regarding JSON syntax or
+///   is not successfully base64-decoded, then an error is returned.
+/// * If `hostname::set` fails, then an error is returned.
 pub fn set_hostname(host: String) -> Result<String> {
     if let Ok(req) = NodeRequest::new::<String>(Node::Hostname(SubCommand::Set), host) {
         run_roxy::<String>(req)
@@ -104,9 +111,14 @@ pub fn set_hostname(host: String) -> Result<String> {
 ///
 /// The following errors are possible:
 ///
-/// * fail to execute comand
-/// * unknown subcommand or invalid argument
-/// * Failed to create a request
+/// * If serialization of command arguments does not succeed, then an error
+///   is returned.
+/// * If spawning the roxy executable fails, then an error is returned.
+/// * If delivering a command to roxy fails, then an error is returned.
+/// * If a response message from roxy is invalid regarding JSON syntax or
+///   is not successfully base64-decoded, then an error is returned.
+/// * If it fails to open `/etc/rsyslog.d/50-default.conf`, then an error
+///   is returned.
 pub fn syslog_servers() -> Result<Option<Vec<(String, String, String)>>> {
     if let Ok(req) = NodeRequest::new::<Option<String>>(Node::Syslog(SubCommand::Get), None) {
         run_roxy::<Option<Vec<(String, String, String)>>>(req)
@@ -121,9 +133,15 @@ pub fn syslog_servers() -> Result<Option<Vec<(String, String, String)>>> {
 ///
 /// The following errors are possible:
 ///
-/// * fail to execute command
-/// * unknown subcommand or invalid argument
-/// * Failed to create a request
+/// * If serialization of command arguments does not succeed, then an error
+///   is returned.
+/// * If spawning the roxy executable fails, then an error is returned.
+/// * If delivering a command to roxy fails, then an error is returned.
+/// * If a response message from roxy is invalid regarding JSON syntax or
+///   is not successfully base64-decoded, then an error is returned.
+/// * If it fails to open or write `/etc/rsyslog.d/50-default.conf`, then
+///   an error is returned.
+/// * If it fails to restart rsyslogd service, then an error is returned.
 pub fn set_syslog_servers(servers: Vec<String>) -> Result<String> {
     if let Ok(req) = NodeRequest::new::<Vec<String>>(Node::Syslog(SubCommand::Set), servers) {
         run_roxy::<String>(req)
@@ -138,9 +156,15 @@ pub fn set_syslog_servers(servers: Vec<String>) -> Result<String> {
 ///
 /// The following errors are possible:
 ///
-/// * fail to execute command
-/// * unknown subcommand or invalid argument
-/// * Failed to create a request
+/// * If serialization of command arguments does not succeed, then an error
+///   is returned.
+/// * If spawning the roxy executable fails, then an error is returned.
+/// * If delivering a command to roxy fails, then an error is returned.
+/// * If a response message from roxy is invalid regarding JSON syntax or
+///   is not successfully base64-decoded, then an error is returned.
+/// * If it fails to open or write `/etc/rsyslog.d/50-default.conf`, then
+///   an error is returned.
+/// * If it fails to restart rsyslogd service, then an error is returned.
 pub fn init_syslog_servers() -> Result<String> {
     if let Ok(req) = NodeRequest::new::<Option<String>>(Node::Syslog(SubCommand::Init), None) {
         run_roxy::<String>(req)
@@ -155,9 +179,12 @@ pub fn init_syslog_servers() -> Result<String> {
 ///
 /// The following errors are possible:
 ///
-/// * fail to execute command
-/// * unknown subcommand or invalid argument
-/// * Failed to create a request
+/// * If serialization of command arguments does not succeed, then an error
+///   is returned.
+/// * If spawning the roxy executable fails, then an error is returned.
+/// * If delivering a command to roxy fails, then an error is returned.
+/// * If a response message from roxy is invalid regarding JSON syntax or
+///   is not successfully base64-decoded, then an error is returned.
 pub fn list_of_interfaces() -> Result<Vec<String>> {
     if let Ok(req) = NodeRequest::new::<Option<String>>(
         Node::Interface(SubCommand::List),
@@ -175,9 +202,12 @@ pub fn list_of_interfaces() -> Result<Vec<String>> {
 ///
 /// The following errors are possible:
 ///
-/// * fail to execute command
-/// * unknown subcommand or invalid argument
-/// * Failed to create a request
+/// * If serialization of command arguments does not succeed, then an error
+///   is returned.
+/// * If spawning the roxy executable fails, then an error is returned.
+/// * If delivering a command to roxy fails, then an error is returned.
+/// * If a response message from roxy is invalid regarding JSON syntax or
+///   is not successfully base64-decoded, then an error is returned.
 pub fn interface(dev: String) -> Result<Option<Vec<(String, NicOutput)>>> {
     if let Ok(req) = NodeRequest::new::<Option<String>>(Node::Interface(SubCommand::Get), Some(dev))
     {
@@ -193,9 +223,12 @@ pub fn interface(dev: String) -> Result<Option<Vec<(String, NicOutput)>>> {
 ///
 /// The following errors are possible:
 ///
-/// * fail to execute command
-/// * unknown subcommand or invalid argument
-/// * Failed to create a request
+/// * If serialization of command arguments does not succeed, then an error
+///   is returned.
+/// * If spawning the roxy executable fails, then an error is returned.
+/// * If delivering a command to roxy fails, then an error is returned.
+/// * If a response message from roxy is invalid regarding JSON syntax or
+///   is not successfully base64-decoded, then an error is returned.
 pub fn interfaces() -> Result<Option<Vec<(String, NicOutput)>>> {
     if let Ok(req) = NodeRequest::new::<Option<String>>(Node::Interface(SubCommand::Get), None) {
         run_roxy::<Option<Vec<(String, NicOutput)>>>(req)
@@ -210,9 +243,18 @@ pub fn interfaces() -> Result<Option<Vec<(String, NicOutput)>>> {
 ///
 /// The following errors are possible:
 ///
-/// * fail to execute command
-/// * unknown subcommand or invalid argument
-/// * Failed to create a request
+/// * If serialization of command arguments does not succeed, then an error
+///   is returned.
+/// * If spawning the roxy executable fails, then an error is returned.
+/// * If delivering a command to roxy fails, then an error is returned.
+/// * If a response message from roxy is invalid regarding JSON syntax or
+///   is not successfully base64-decoded, then an error is returned.
+/// * If it fails to read or write a netplan yaml conf file, then an error
+///   is returned.
+/// * If dhcp4 and static ip address or nameserver address is set in the same
+///   interface, then an error is returned.
+/// * If a user tries to set a new gateway address when another interface has
+///   the same, then an error is returned.
 pub fn set_interface(
     dev: String,
     addresses: Option<Vec<String>>,
@@ -236,9 +278,13 @@ pub fn set_interface(
 ///
 /// The following errors are possible:
 ///
-/// * fail to execute command
-/// * unknown subcommand or invalid argument
-/// * Failed to create a request
+/// * If serialization of command arguments does not succeed, then an error
+///   is returned.
+/// * If spawning the roxy executable fails, then an error is returned.
+/// * If delivering a command to roxy fails, then an error is returned.
+/// * If a response message from roxy is invalid regarding JSON syntax or
+///   is not successfully base64-decoded, then an error is returned.
+/// * If `nix::sys::reboot::reboot` fails, then an error is returned.
 pub fn reboot() -> Result<String> {
     if let Ok(req) = NodeRequest::new::<Option<String>>(Node::Reboot, None) {
         run_roxy::<String>(req)
@@ -253,9 +299,13 @@ pub fn reboot() -> Result<String> {
 ///
 /// The following errors are possible:
 ///
-/// * fail to execute command
-/// * unknown subcommand or invalid argument
-/// * Failed to create a request
+/// * If serialization of command arguments does not succeed, then an error
+///   is returned.
+/// * If spawning the roxy executable fails, then an error is returned.
+/// * If delivering a command to roxy fails, then an error is returned.
+/// * If a response message from roxy is invalid regarding JSON syntax or
+///   is not successfully base64-decoded, then an error is returned.
+/// * If `nix::sys::reboot::reboot` fails, then an error is returned.
 pub fn power_off() -> Result<String> {
     if let Ok(req) = NodeRequest::new::<Option<String>>(Node::PowerOff, None) {
         run_roxy::<String>(req)
@@ -272,14 +322,14 @@ pub enum TaskResult {
 }
 
 // TODO: fix the exact path to "roxy"
-///
-/// # Errors
-///
-/// * Failure to spawn roxy
-/// * Failure to write command to roxy
-/// * Invalid json syntax in response message
-/// * base64 decode error for reponse message
-/// * Received execution error from roxy
+//
+// # Errors
+//
+// * Failure to spawn roxy
+// * Failure to write command to roxy
+// * Invalid json syntax in response message
+// * base64 decode error for reponse message
+// * Received execution error from roxy
 fn run_roxy<T>(req: NodeRequest) -> Result<T>
 where
     T: serde::de::DeserializeOwned,
