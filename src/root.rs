@@ -11,7 +11,7 @@ use super::common::{run_command_output, Nic, NicOutput, SubCommand, DEFAULT_PATH
 use anyhow::{anyhow, Result};
 use std::process::Command;
 
-/// Run linux command
+/// Runs linux command
 /// # Errors
 /// * get error code from executed command
 fn run_command(cmd: &str, path: Option<&[&str]>, args: &[&str]) -> Result<bool> {

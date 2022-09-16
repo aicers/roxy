@@ -8,7 +8,7 @@ use std::{
 // TODO: should change this path to /usr/local/aice/conf/version?
 const DEFAULT_VERSION_PATH: &str = "/etc/version";
 
-/// Set OS or Product version. Refer /etc/version
+/// Sets OS or Product version. Refer /etc/version
 ///
 /// # Example
 ///
