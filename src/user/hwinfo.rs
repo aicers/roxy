@@ -8,12 +8,15 @@ const DEFAULT_VERSION_STRING: &str = "AICE security";
 // TODO: should change this path to /usr/local/aice/conf/version?
 const DEFAULT_VERSION_PATH: &str = "/etc/version";
 
-/// Get the usage of the partition mounted on `/data` using command `df -h`:
-/// # Return
-///   Mount point, Total size, Used size, Used rate
-///
-/// # Errors
-/// * fail to compile regex
+// Get the usage of the partition mounted on `/data` using command `df -h`:
+//
+// # Return
+//
+//   Mount point, Total size, Used size, Used rate
+//
+// # Errors
+//
+// * fail to compile regex
 pub(crate) fn disk_usage() -> Result<Option<(String, String, String, String)>> {
     if let Some(output) = run_command_output("df", None, &["-h"]) {
         let re = Regex::new(

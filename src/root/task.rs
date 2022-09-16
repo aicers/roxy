@@ -9,7 +9,7 @@ use std::fs;
 use std::io::Write;
 
 #[derive(Debug, Deserialize, Serialize)]
-pub enum Task {
+pub(crate) enum Task {
     Hostname { cmd: SubCommand, arg: String },
     Interface { cmd: SubCommand, arg: String },
     Ntp { cmd: SubCommand, arg: String },
@@ -49,17 +49,18 @@ impl Task {
     }
 }
 
-pub type ExecResult = std::result::Result<String, &'static str>;
-pub const OKAY: &str = "Ok";
-pub const ERR_INVALID_COMMAND: &str = "invalid command";
+pub(crate) type ExecResult = std::result::Result<String, &'static str>;
+pub(crate) const OKAY: &str = "Ok";
+pub(crate) const ERR_INVALID_COMMAND: &str = "invalid command";
 const ERR_FAIL: &str = "fail";
 const ERR_MESSAGE_TOO_LONG: &str = "message too long";
 const ERR_PARSE_FAIL: &str = "fail to serialize response message";
 
 impl Task {
-    /// # Errors
-    /// * unsupported command
-    /// * got error from the executed command
+    // # Errors
+    //
+    // * unsupported command
+    // * got error from the executed command
     pub fn execute(&self) -> ExecResult {
         log_debug(&format!("task {:?}", self));
         match self {
@@ -95,16 +96,17 @@ impl Task {
         response(self, OKAY)
     }
 
-    /// Get, add, delete, enable, disable, status for ufw
-    /// # Return
-    /// * Option<Vec<(String, String, String, Option<String>, Option<String>)>>: Get command.
-    ///   Vec<(Action, From, To, Protocol, Interface)>
-    /// * OKAY: Get, Delete, Disable, Enable command
-    /// * true/false: Status command
-    ///
-    /// # Errors
-    /// * fail to execute command
-    /// * unknown subcommand or invalid argument
+    // # Return
+    //
+    // * Option<Vec<(String, String, String, Option<String>, Option<String>)>>: Get command.
+    //   Vec<(Action, From, To, Protocol, Interface)>
+    // * OKAY: Get, Delete, Disable, Enable command
+    // * true/false: Status command
+    //
+    // # Errors
+    //
+    // * fail to execute command
+    // * unknown subcommand or invalid argument
     fn ufw(&self, cmd: SubCommand) -> ExecResult {
         match cmd {
             SubCommand::Get => {
@@ -157,13 +159,14 @@ impl Task {
         }
     }
 
-    /// Get or Set version for OS and Product
-    /// # Return
-    /// * (String, String): (OS version, Product Version)
-    ///
-    /// # Errors
-    /// * fail to set version
-    /// * unknown subcommand or invalid argument
+    // Gets or sets version for OS and Product
+    //
+    // # Return
+    // * (String, String): (OS version, Product Version)
+    //
+    // # Errors
+    // * fail to set version
+    // * unknown subcommand or invalid argument
     fn version(&self, cmd: SubCommand) -> ExecResult {
         match cmd {
             SubCommand::SetOsVersion | SubCommand::SetProductVersion => {
@@ -178,15 +181,18 @@ impl Task {
         }
     }
 
-    /// Get or Set remote syslog servers
-    /// # Return
-    /// * OKAY: Init, Set command. success to execute command
-    /// * Option<Vec<(String, String, String)>>: Get command.
-    ///   None if remote server addresses are not exist, else (facility, proto, addr) list
-    ///
-    /// # Errors
-    /// * fail to execute command
-    /// * unknown subcommand or invalid argument
+    // Gets or sets remote syslog servers
+    //
+    // # Return
+    //
+    // * OKAY: Init, Set command. success to execute command
+    // * Option<Vec<(String, String, String)>>: Get command.
+    //   None if remote server addresses are not exist, else (facility, proto, addr) list
+    //
+    // # Errors
+    //
+    // * fail to execute command
+    // * unknown subcommand or invalid argument
     fn syslog(&self, cmd: SubCommand) -> ExecResult {
         match cmd {
             SubCommand::Get => {
@@ -215,14 +221,17 @@ impl Task {
         }
     }
 
-    /// Get or Set hostname
-    /// # Return
-    /// * OKAY: Set command. Success to execute command
-    /// * String: Get command. Hostname
-    ///
-    /// # Errors
-    /// * fail to execute comand
-    /// * unknown subcommand or invalid argument
+    // Gets or sets hostname
+    //
+    // # Return
+    //
+    // * OKAY: Set command. Success to execute command
+    // * String: Get command. Hostname
+    //
+    // # Errors
+    //
+    // * fail to execute comand
+    // * unknown subcommand or invalid argument
     fn hostname(&self, cmd: SubCommand) -> ExecResult {
         match cmd {
             SubCommand::Get => {
@@ -245,15 +254,18 @@ impl Task {
     }
 
     // TODO: simplify interface configuration for Get command
-    /// Manage Nic setting
-    /// # Return
-    /// * OKAY: all commands except Get and List. Success to execute command
-    /// * Option<Vec<(String, Nic)>>: Get command. Interface name and it's configuration.
-    /// * Vec<String>: List command. Interface names list
-    ///
-    /// # Errors
-    /// * fail to execute command
-    /// * unknown subcommand or invalid argument
+    // Manages Nic setting
+    //
+    // # Return
+    //
+    // * OKAY: all commands except Get and List. Success to execute command
+    // * Option<Vec<(String, Nic)>>: Get command. Interface name and it's configuration.
+    // * Vec<String>: List command. Interface names list
+    //
+    // # Errors
+    //
+    // * fail to execute command
+    // * unknown subcommand or invalid argument
     fn interface(&self, cmd: SubCommand) -> ExecResult {
         match cmd {
             SubCommand::Delete => {
@@ -305,13 +317,16 @@ impl Task {
         }
     }
 
-    /// Get or set sshd port number
-    /// # Return
-    /// * u16: Get command. Port number
-    ///
-    /// # Errors
-    /// * fail to execute command
-    /// * unknown subcommand or invalid argument
+    // Gets or sets sshd port number
+    //
+    // # Return
+    //
+    // * u16: Get command. Port number
+    //
+    // # Errors
+    //
+    // * fail to execute command
+    // * unknown subcommand or invalid argument
     fn sshd(&self, cmd: SubCommand) -> ExecResult {
         match cmd {
             SubCommand::Get => {
@@ -333,15 +348,16 @@ impl Task {
         }
     }
 
-    /// Get, set, enable, disable, status
-    /// # Return
-    /// * OKAY: Disable, Enable, Set command. Success to execute command
-    /// * Option<Vec<String>>: Get command. NTP server list
-    /// * true/false: Status command.
-    ///
-    /// # Errors
-    /// * fail to execute command
-    /// * unknown subcommand or invalid argument
+    // # Return
+    //
+    // * OKAY: Disable, Enable, Set command. Success to execute command
+    // * Option<Vec<String>>: Get command. NTP server list
+    // * true/false: Status command.
+    //
+    // # Errors
+    //
+    // * fail to execute command
+    // * unknown subcommand or invalid argument
     fn ntp(&self, cmd: SubCommand) -> ExecResult {
         match cmd {
             SubCommand::Get => {
@@ -382,10 +398,12 @@ impl Task {
     }
 }
 
-/// make response message. max size is u32 bit long.
-/// # Errors
-/// * message size is over 64k
-/// * fail to serialize input
+// Makes response message. max size is u32 bit long.
+//
+// # Errors
+//
+// * message size is over 64k
+// * fail to serialize input
 fn response<I>(taskcode: &Task, input: I) -> ExecResult
 where
     I: Serialize,
@@ -403,9 +421,8 @@ where
     }
 }
 
-/// DEBUG logging
 // TODO: define the full path for roxy.log file
-pub fn log_debug(msg: &str) {
+fn log_debug(msg: &str) {
     if let Ok(mut writer) = fs::OpenOptions::new()
         .write(true)
         .create(true)

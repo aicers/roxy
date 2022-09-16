@@ -34,7 +34,7 @@ impl NodeRequest {
     ///
     /// # Errors
     ///
-    /// * fail to serialize command
+    /// * If serialization of arguments fails, then an error is returned.
     pub fn new<T>(kind: Node, cmd: T) -> Result<Self>
     where
         T: Serialize,
@@ -166,7 +166,7 @@ impl NicOutput {
     }
 }
 
-/// Runs linux command and return its output
+/// Runs a linux command and returns its output.
 #[must_use]
 pub fn run_command_output(cmd: &str, path: Option<&[&str]>, args: &[&str]) -> Option<String> {
     let mut cmd = Command::new(cmd);

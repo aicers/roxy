@@ -10,27 +10,27 @@ use std::{
 const RSYSLOG_CONF: &str = "/etc/rsyslog.d/50-default.conf";
 const DEFAULT_FACILITY: &str = "user.*";
 
-/// Set or init rsyslog remote servers. Currently the facility is fixed to `user.*`.
-///
-/// # Example
-///
-/// ```ignore
-/// // To set remote addresses:
-/// let cmd = Some(vec![
-///     "@@192.168.0.205:7500".to_string(), // tcp
-///     "@192.168.1.71:500".to_string()     // udp
-/// ]);
-/// let ret = syslog::set(&cmd)?;
-///
-/// // To init(delete) remote addresses:
-/// let ret = syslog::set(None)?;
-/// ```
-/// # Errors
-/// * invalid protocol, remote address, port
-/// * fail to open /etc/rsyslog.d/50-default.conf
-/// * fail to write modified contents to /etc/rsyslog.d/50-default.conf
-/// * fail to restart rsyslogd service
-pub fn set(remote_addrs: &Option<Vec<String>>) -> Result<bool> {
+// Sets or init rsyslog remote servers. Currently the facility is fixed to `user.*`.
+//
+// # Example
+//
+// To set remote addresses:
+// let cmd = Some(vec![
+//     "@@192.168.0.205:7500".to_string(), // tcp
+//     "@192.168.1.71:500".to_string()     // udp
+// ]);
+// let ret = syslog::set(&cmd)?;
+//
+// To init(delete) remote addresses:
+// let ret = syslog::set(None)?;
+//
+// # Errors
+//
+// * invalid protocol, remote address, port
+// * fail to open /etc/rsyslog.d/50-default.conf
+// * fail to write modified contents to /etc/rsyslog.d/50-default.conf
+// * fail to restart rsyslogd service
+pub(crate) fn set(remote_addrs: &Option<Vec<String>>) -> Result<bool> {
     if let Some(addrs) = remote_addrs {
         for addr in addrs {
             let _addr = addr
@@ -68,20 +68,20 @@ pub fn set(remote_addrs: &Option<Vec<String>>) -> Result<bool> {
     run_command("systemctl", None, &["restart", "rsyslog"])
 }
 
-/// Get rsyslog remote servers.
-///
-/// # Example
-///
-/// ```ignore
-/// if let Some(addrs) = syslog::get() {
-///     for (facility, proto, addr) in &addrs {
-///         println!("facility = {}, proto = {}, dest addr = {}", facility, proto, addr);
-///     }
-/// }
-/// ```
-/// # Errors
-/// * fail to open /etc/rsyslog.d/50-default.conf
-pub fn get() -> Result<Option<Vec<(String, String, String)>>> {
+// Gets rsyslog remote servers.
+//
+// # Example
+//
+// if let Some(addrs) = syslog::get() {
+//     for (facility, proto, addr) in &addrs {
+//         println!("facility = {}, proto = {}, dest addr = {}", facility, proto, addr);
+//     }
+// }
+//
+// # Errors
+//
+// * fail to open /etc/rsyslog.d/50-default.conf
+pub(crate) fn get() -> Result<Option<Vec<(String, String, String)>>> {
     let contents = fs::read_to_string(RSYSLOG_CONF)?;
     let lines = contents.lines();
 

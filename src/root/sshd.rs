@@ -9,21 +9,19 @@ use std::{
 const SSHD_CONFIG: &str = "/etc/ssh/sshd_config";
 const SSHD_DEFAULT_PORT: u16 = 22;
 
-/// Set sshd port.
-///
-/// # Example
-///
-/// ```ignore
-/// let ret = sshd::set("10022")?;
-/// ```
-///
-/// # Errors
-///
-/// * invalid port
-/// * fail to open ``/etc/ssh/sshd_config``
-/// * fail to write modified contents to ``/etc/ssh/sshd_config``
-/// * fail to restart sshd service
-pub fn set(port: &str) -> Result<bool> {
+// Sets sshd port.
+//
+// # Example
+//
+// let ret = sshd::set("10022")?;
+//
+// # Errors
+//
+// * invalid port
+// * fail to open ``/etc/ssh/sshd_config``
+// * fail to write modified contents to ``/etc/ssh/sshd_config``
+// * fail to restart sshd service
+pub(crate) fn set(port: &str) -> Result<bool> {
     let port = port.parse::<u16>()?;
 
     let contents = fs::read_to_string(SSHD_CONFIG)?;
@@ -48,12 +46,12 @@ pub fn set(port: &str) -> Result<bool> {
     run_command("systemctl", None, &["restart", "sshd"])
 }
 
-/// Get sshd port number
-///
-/// # Errors
-///
-/// * fail to open ``/etc/ssh/sshd_config``
-pub fn get() -> Result<u16> {
+// Gets sshd port number
+//
+// # Errors
+//
+// * fail to open ``/etc/ssh/sshd_config``
+pub(crate) fn get() -> Result<u16> {
     let contents = fs::read_to_string(SSHD_CONFIG)?;
     let lines = contents.lines();
 

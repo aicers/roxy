@@ -11,34 +11,38 @@ use std::{
 const AICE_SERVICES: [&str; 6] = ["zeek", "reconverge", "review", "hog", "peek", "reproduce"];
 //const SYSTEM_SERVICES: [&str; 5] = ["rsyslogd", "ntp", "ufw", "postgres", "kafka"];
 
-/// Start service
-/// # Errors
-/// * fail to execute command
-pub fn start(service: &str) -> Result<bool> {
+// Starts service
+//
+// # Errors
+//
+// * fail to execute command
+pub(crate) fn start(service: &str) -> Result<bool> {
     run_command("systemctl", None, &["start", service])
 }
 
-/// Stop service
-/// # Errors
-/// # Errors
-/// * fail to execute command
-pub fn stop(service: &str) -> Result<bool> {
+// Stops service
+//
+// # Errors
+//
+// * fail to execute command
+pub(crate) fn stop(service: &str) -> Result<bool> {
     run_command("systemctl", None, &["stop", service])
 }
 
-/// Restart service
-/// # Errors
-/// # Errors
-/// * fail to execute command
-pub fn restart(service: &str) -> Result<bool> {
+// Restarts service
+//
+// # Errors
+//
+// * fail to execute command
+pub(crate) fn restart(service: &str) -> Result<bool> {
     run_command("systemctl", None, &["restart", service])
 }
 
-/// # Errors
-///
-/// * `systemctl` command not found
-/// * `cmd` is not one of `start`, `status`, `stop`
-/// * command execution error
+// # Errors
+//
+// * `systemctl` command not found
+// * `cmd` is not one of `start`, `status`, `stop`
+// * command execution error
 fn service_control(service: &str, cmd: &str) -> Result<bool> {
     if !AICE_SERVICES.contains(&service) {
         return Err(anyhow!("Unknown service name"));
@@ -53,7 +57,7 @@ fn service_control(service: &str, cmd: &str) -> Result<bool> {
 }
 
 #[must_use]
-pub fn status(svc: Option<&str>) -> Vec<(String, String)> {
+pub(crate) fn status(svc: Option<&str>) -> Vec<(String, String)> {
     let services = if let Some(s) = svc {
         vec![s]
     } else {
@@ -77,9 +81,10 @@ pub fn status(svc: Option<&str>) -> Vec<(String, String)> {
     out
 }
 
-/// # Errors
-/// * fail to stop all active services
-pub fn stop_all() -> Result<()> {
+// # Errors
+//
+// * fail to stop all active services
+pub(crate) fn stop_all() -> Result<()> {
     let st = status(None);
     for (service, state) in &st {
         if *state == "active" {
@@ -89,13 +94,14 @@ pub fn stop_all() -> Result<()> {
     Ok(())
 }
 
-/// Check the port is open (service is available).
-/// * Be careful! The opened ports does not mean that service is available. Sometimes it takes more time.
-/// * The service running in docker container should wait more time until service is ready.
-///
-/// # Errors
-/// * invalid ipaddress or port number
-pub fn waitfor_up(addr: &str, port: &str, timeout: u64) -> Result<bool> {
+// Check the port is open (service is available).
+// * Be careful! The opened ports does not mean that service is available. Sometimes it takes more time.
+// * The service running in docker container should wait more time until service is ready.
+//
+// # Errors
+//
+// * invalid ipaddress or port number
+pub(crate) fn waitfor_up(addr: &str, port: &str, timeout: u64) -> Result<bool> {
     let remote_sock = SocketAddr::new(addr.parse::<IpAddr>()?, port.parse::<u16>()?);
     let start = SystemTime::now();
     loop {

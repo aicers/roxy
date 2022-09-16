@@ -4,17 +4,17 @@ use regex::Regex;
 use super::{run_command, run_command_output};
 pub type AccessLists = Vec<(String, String, String, Option<String>, Option<String>)>;
 
-/// Get firewall rules. The result of command `ufw status`.
-/// Currently only return IPv4 rules.
-///
-/// # Return
-///
-/// Vec<(Action, From, To, Protocol, Interface)>
-/// * Action: String,        // ALLOW IN, ALLOW OUT, DENY IN, DENY OUT
-/// * From: String,          // Source address, port (or "Any")
-/// * To: String,            // Destination address, port (or "Any")
-/// * Protocol: Option<String>  // Protocol name
-/// * Interface: Option<String> // Interface name
+// Gets firewall rules. The result of command `ufw status`.
+// Currently only return IPv4 rules.
+//
+// # Return
+//
+// Vec<(Action, From, To, Protocol, Interface)>
+// * Action: String,        // ALLOW IN, ALLOW OUT, DENY IN, DENY OUT
+// * From: String,          // Source address, port (or "Any")
+// * To: String,            // Destination address, port (or "Any")
+// * Protocol: Option<String>  // Protocol name
+// * Interface: Option<String> // Interface name
 /*
 $  ufw status
 Status: active
@@ -34,10 +34,11 @@ To                         Action      From
 Anywhere                   DENY IN     203.0.113.100
 Anywhere on eth0           ALLOW IN    203.0.113.102"#;
 */
-/// # Errors
-/// * fail to execute ufw status command
-/// * fail to compile regex to parse ufw rules
-pub fn get() -> Result<Option<AccessLists>> {
+// # Errors
+//
+// * fail to execute ufw status command
+// * fail to compile regex to parse ufw rules
+pub(crate) fn get() -> Result<Option<AccessLists>> {
     if let Some(output) = run_command_output("ufw", None, &["status"]) {
         let re_action = Regex::new(r#"(?P<a>ALLOW|DENY)\s(?P<d>IN|OUT)"#)?;
         let re_dev = Regex::new(r#"(on\s[a-z0-9]+)"#)?;
@@ -92,44 +93,44 @@ pub fn get() -> Result<Option<AccessLists>> {
     Ok(None)
 }
 
-/// Add new rules.
-/// This function execute `ufw add` command internally.
-///
-/// # Example
-///
-/// ```ignore
-/// // UFW rule syntax
-/// // allow|deny [in on <dev>] [from <src>] [to <dst>] [port <port>] [proto <protocol>]
-/// let rules_to_add = vec![
-///     "allow in on eth0 to any port 80 proto tcp".to_string(),
-///     "allow in on eth0 from 203.0.113.102".to_string(),
-///     "allow from 203.0.113.0/24 to any port 22 proto tcp".to_string()
-/// ];
-/// ufw::add(&rules_to_add).unwrap();
-/// ```
-/// # Errors
-/// * fail to run ufw command
-pub fn add(args: &[String]) -> Result<()> {
+// Adds new rules.
+// This function execute `ufw add` command internally.
+//
+// # Example
+//
+// UFW rule syntax
+// allow|deny [in on <dev>] [from <src>] [to <dst>] [port <port>] [proto <protocol>]
+// let rules_to_add = vec![
+//     "allow in on eth0 to any port 80 proto tcp".to_string(),
+//     "allow in on eth0 from 203.0.113.102".to_string(),
+//     "allow from 203.0.113.0/24 to any port 22 proto tcp".to_string()
+// ];
+// ufw::add(&rules_to_add).unwrap();
+//
+// # Errors
+//
+// * fail to run ufw command
+pub(crate) fn add(args: &[String]) -> Result<()> {
     for rule in args {
         run_command("ufw", None, &[rule.as_str()])?;
     }
     Ok(())
 }
 
-/// Remove rules.
-/// This function execute `ufw delete` command internally.
-///
-/// # Example
-///
-/// ```ignore
-/// let rules_to_delete = vec![
-///     "allow from 203.0.113.101".to_string(),
-///     "allow from 203.0.113.0/24 proto tcp to any port 22".to_string()];
-/// ufw::delete(&rules_to_delete).unwrap();
-/// ```
-/// # Errors
-/// * fail to run ufw delete command
-pub fn delete(args: &[String]) -> Result<()> {
+// Removes rules.
+// This function execute `ufw delete` command internally.
+//
+// # Example
+//
+// let rules_to_delete = vec![
+//     "allow from 203.0.113.101".to_string(),
+//     "allow from 203.0.113.0/24 proto tcp to any port 22".to_string()];
+// ufw::delete(&rules_to_delete).unwrap();
+//
+// # Errors
+//
+// * fail to run ufw delete command
+pub(crate) fn delete(args: &[String]) -> Result<()> {
     for rule_id in args {
         run_command("ufw", None, &["delete", rule_id])?;
     }
@@ -137,24 +138,28 @@ pub fn delete(args: &[String]) -> Result<()> {
     Ok(())
 }
 
-/// Enable ufw
-/// # Errors
-/// * fail to run ufw enable command
-pub fn enable() -> Result<bool> {
+// Enables ufw
+//
+// # Errors
+//
+// * fail to run ufw enable command
+pub(crate) fn enable() -> Result<bool> {
     run_command("ufw", None, &["enable"])
 }
 
-/// Disable ufw
-/// # Errors
-/// * fail to run ufw disable command
-pub fn disable() -> Result<bool> {
+// Disables ufw
+//
+// # Errors
+//
+// * fail to run ufw disable command
+pub(crate) fn disable() -> Result<bool> {
     run_command("ufw", None, &["disable"])
 }
 
-/// return true if ufw is active
+// Returns true if ufw is active
 // Be careful. systemctl status and ufw status may return different value.
 #[must_use]
-pub fn is_active() -> bool {
+pub(crate) fn is_active() -> bool {
     if let Some(output) = run_command_output("ufw", None, &["status"]) {
         output.contains("Status: active")
     } else {
@@ -162,9 +167,11 @@ pub fn is_active() -> bool {
     }
 }
 
-/// `ufw reset` command
-/// # Errors
-/// * fail to run ufw reset command
-pub fn reset() -> Result<bool> {
+// `ufw reset` command
+//
+// # Errors
+//
+// * fail to run ufw reset command
+pub(crate) fn reset() -> Result<bool> {
     run_command("ufw", None, &["reset"])
 }
