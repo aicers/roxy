@@ -6,23 +6,28 @@ use common::{NicOutput, Node, NodeRequest, SubCommand};
 use serde::Deserialize;
 use std::process::{Command, Stdio};
 
-pub use user::hwinfo::{disk_usage, uptime, version};
+pub use user::hwinfo::{uptime, version};
 pub use user::usg::{resource_usage, ResourceUsage};
 
-/// Returns a hostname.
+pub const ROXY_ERR: &str = "Roxy Error:";
+const FAIL_REQUEST: &str = "Roxy Error: Failed to create a request";
+
+/// Returns usage of the partition mounted on `/data` using command `df -h`
+/// as a tuple of mount point, total size, used size, and used rate.
 ///
 /// # Errors
 ///
-/// If `hostname::get` fails, then an error is returned.
-pub fn hostname() -> Result<String> {
-    if let Ok(host) = hostname::get() {
-        Ok(host.to_string_lossy().to_string())
-    } else {
-        Err(anyhow!("Failed to get a hostname"))
-    }
+/// If `Regex` fails to compile a given regular expression,
+/// then an error is returned.
+pub fn disk_usage() -> Result<Option<(String, String, String, String)>> {
+    user::hwinfo::disk_usage().map_err(|e| anyhow!(format!("{} {}", ROXY_ERR, e)))
 }
 
-const FAIL_REQUEST: &str = "Failed to create a request";
+/// Returns a hostname.
+#[must_use]
+pub fn hostname() -> String {
+    gethostname::gethostname().to_string_lossy().into_owned()
+}
 
 /// Sets a version for OS.
 ///
@@ -40,7 +45,7 @@ const FAIL_REQUEST: &str = "Failed to create a request";
 ///   is returned.
 pub fn set_os_version(ver: String) -> Result<String> {
     if let Ok(req) = NodeRequest::new::<String>(Node::Version(SubCommand::SetOsVersion), ver) {
-        run_roxy::<String>(req)
+        run_roxy::<String>(req).map_err(|e| anyhow!(format!("{} {}", ROXY_ERR, e)))
     } else {
         Err(anyhow!(FAIL_REQUEST))
     }
@@ -60,7 +65,7 @@ pub fn set_os_version(ver: String) -> Result<String> {
 ///   is returned.
 pub fn set_product_version(ver: String) -> Result<String> {
     if let Ok(req) = NodeRequest::new::<String>(Node::Version(SubCommand::SetProductVersion), ver) {
-        run_roxy::<String>(req)
+        run_roxy::<String>(req).map_err(|e| anyhow!(format!("{} {}", ROXY_ERR, e)))
     } else {
         Err(anyhow!(FAIL_REQUEST))
     }
@@ -79,7 +84,7 @@ pub fn set_product_version(ver: String) -> Result<String> {
 /// * If `hostname::set` fails, then an error is returned.
 pub fn set_hostname(host: String) -> Result<String> {
     if let Ok(req) = NodeRequest::new::<String>(Node::Hostname(SubCommand::Set), host) {
-        run_roxy::<String>(req)
+        run_roxy::<String>(req).map_err(|e| anyhow!(format!("{} {}", ROXY_ERR, e)))
     } else {
         Err(anyhow!(FAIL_REQUEST))
     }
@@ -102,6 +107,7 @@ pub fn set_hostname(host: String) -> Result<String> {
 pub fn syslog_servers() -> Result<Option<Vec<(String, String, String)>>> {
     if let Ok(req) = NodeRequest::new::<Option<String>>(Node::Syslog(SubCommand::Get), None) {
         run_roxy::<Option<Vec<(String, String, String)>>>(req)
+            .map_err(|e| anyhow!(format!("{} {}", ROXY_ERR, e)))
     } else {
         Err(anyhow!(FAIL_REQUEST))
     }
@@ -124,7 +130,7 @@ pub fn syslog_servers() -> Result<Option<Vec<(String, String, String)>>> {
 /// * If it fails to restart rsyslogd service, then an error is returned.
 pub fn set_syslog_servers(servers: Vec<String>) -> Result<String> {
     if let Ok(req) = NodeRequest::new::<Vec<String>>(Node::Syslog(SubCommand::Set), servers) {
-        run_roxy::<String>(req)
+        run_roxy::<String>(req).map_err(|e| anyhow!(format!("{} {}", ROXY_ERR, e)))
     } else {
         Err(anyhow!(FAIL_REQUEST))
     }
@@ -147,7 +153,7 @@ pub fn set_syslog_servers(servers: Vec<String>) -> Result<String> {
 /// * If it fails to restart rsyslogd service, then an error is returned.
 pub fn init_syslog_servers() -> Result<String> {
     if let Ok(req) = NodeRequest::new::<Option<String>>(Node::Syslog(SubCommand::Init), None) {
-        run_roxy::<String>(req)
+        run_roxy::<String>(req).map_err(|e| anyhow!(format!("{} {}", ROXY_ERR, e)))
     } else {
         Err(anyhow!(FAIL_REQUEST))
     }
@@ -170,7 +176,7 @@ pub fn list_of_interfaces() -> Result<Vec<String>> {
         Node::Interface(SubCommand::List),
         Some(String::from("en")),
     ) {
-        run_roxy::<Vec<String>>(req)
+        run_roxy::<Vec<String>>(req).map_err(|e| anyhow!(format!("{} {}", ROXY_ERR, e)))
     } else {
         Err(anyhow!(FAIL_REQUEST))
     }
@@ -192,6 +198,7 @@ pub fn interface(dev: String) -> Result<Option<Vec<(String, NicOutput)>>> {
     if let Ok(req) = NodeRequest::new::<Option<String>>(Node::Interface(SubCommand::Get), Some(dev))
     {
         run_roxy::<Option<Vec<(String, NicOutput)>>>(req)
+            .map_err(|e| anyhow!(format!("{} {}", ROXY_ERR, e)))
     } else {
         Err(anyhow!(FAIL_REQUEST))
     }
@@ -212,6 +219,7 @@ pub fn interface(dev: String) -> Result<Option<Vec<(String, NicOutput)>>> {
 pub fn interfaces() -> Result<Option<Vec<(String, NicOutput)>>> {
     if let Ok(req) = NodeRequest::new::<Option<String>>(Node::Interface(SubCommand::Get), None) {
         run_roxy::<Option<Vec<(String, NicOutput)>>>(req)
+            .map_err(|e| anyhow!(format!("{} {}", ROXY_ERR, e)))
     } else {
         Err(anyhow!(FAIL_REQUEST))
     }
@@ -246,7 +254,7 @@ pub fn set_interface(
     if let Ok(req) =
         NodeRequest::new::<(String, NicOutput)>(Node::Interface(SubCommand::Set), (dev, nic))
     {
-        run_roxy::<String>(req)
+        run_roxy::<String>(req).map_err(|e| anyhow!(format!("{} {}", ROXY_ERR, e)))
     } else {
         Err(anyhow!(FAIL_REQUEST))
     }
@@ -267,7 +275,7 @@ pub fn set_interface(
 /// * If `nix::sys::reboot::reboot` fails, then an error is returned.
 pub fn reboot() -> Result<String> {
     if let Ok(req) = NodeRequest::new::<Option<String>>(Node::Reboot, None) {
-        run_roxy::<String>(req)
+        run_roxy::<String>(req).map_err(|e| anyhow!(format!("{} {}", ROXY_ERR, e)))
     } else {
         Err(anyhow!(FAIL_REQUEST))
     }
@@ -288,7 +296,7 @@ pub fn reboot() -> Result<String> {
 /// * If `nix::sys::reboot::reboot` fails, then an error is returned.
 pub fn power_off() -> Result<String> {
     if let Ok(req) = NodeRequest::new::<Option<String>>(Node::PowerOff, None) {
-        run_roxy::<String>(req)
+        run_roxy::<String>(req).map_err(|e| anyhow!(format!("{} {}", ROXY_ERR, e)))
     } else {
         Err(anyhow!(FAIL_REQUEST))
     }

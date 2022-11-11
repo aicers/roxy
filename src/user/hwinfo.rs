@@ -8,14 +8,7 @@ const DEFAULT_VERSION_STRING: &str = "AICE security";
 // TODO: should change this path to /usr/local/aice/conf/version?
 const DEFAULT_VERSION_PATH: &str = "/etc/version";
 
-/// Returns usage of the partition mounted on `/data` using command `df -h`
-/// as a tuple of mount point, total size, used size, and used rate.
-///
-/// # Errors
-///
-/// If `Regex` fails to compile a given regular expression,
-/// then an error is returned.
-pub fn disk_usage() -> Result<Option<(String, String, String, String)>> {
+pub(crate) fn disk_usage() -> Result<Option<(String, String, String, String)>> {
     if let Some(output) = run_command_output("df", None, &["-h"]) {
         let re = Regex::new(
             r#"(?P<f>[/a-z0-9]+)\s+(?P<s>[0-9\.]+[A-Za-z]+)\s+(?P<u>[0-9\.]+[A-Za-z]*)\s+(?P<a>[0-9\.]+[A-Za-z]*)\s+(?P<e>[0-9]+%)\s+(?P<m>[/a-z0-9]+)"#,
