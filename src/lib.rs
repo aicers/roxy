@@ -6,43 +6,16 @@ use common::{NicOutput, Node, NodeRequest, SubCommand};
 use serde::Deserialize;
 use std::process::{Command, Stdio};
 
-/// Returns usage of the partition mounted on `/data` using command `df -h`
-/// as a tuple of mount point, total size, used size, and used rate.
-///
-/// # Errors
-///
-/// If `Regex` fails to compile a given regular expression,
-/// then an error is returned.
-pub fn disk_usage() -> Result<Option<(String, String, String, String)>> {
-    user::hwinfo::disk_usage()
-}
-
-/// Returns a hostname.
-///
-/// # Errors
-///
-/// If `hostname::get` fails, then an error is returned.
-pub fn hostname() -> Result<String> {
-    if let Ok(host) = hostname::get() {
-        Ok(host.to_string_lossy().to_string())
-    } else {
-        Err(anyhow!("Failed to get a hostname"))
-    }
-}
-
-/// Returns how long the system has been running.
-#[must_use]
-pub fn uptime() -> Option<String> {
-    user::hwinfo::uptime()
-}
-
-/// Returns a tuple of OS version and product version.
-#[must_use]
-pub fn version() -> (String, String) {
-    user::hwinfo::get_version()
-}
+pub use user::hwinfo::{uptime, version};
+pub use user::usg::{resource_usage, ResourceUsage};
 
 const FAIL_REQUEST: &str = "Failed to create a request";
+
+/// Returns a hostname.
+#[must_use]
+pub fn hostname() -> String {
+    gethostname::gethostname().to_string_lossy().into_owned()
+}
 
 /// Sets a version for OS.
 ///
