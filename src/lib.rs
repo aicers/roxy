@@ -6,16 +6,8 @@ use common::{NicOutput, Node, NodeRequest, SubCommand};
 use serde::Deserialize;
 use std::process::{Command, Stdio};
 
-/// Returns usage of the partition mounted on `/data` using command `df -h`
-/// as a tuple of mount point, total size, used size, and used rate.
-///
-/// # Errors
-///
-/// If `Regex` fails to compile a given regular expression,
-/// then an error is returned.
-pub fn disk_usage() -> Result<Option<(String, String, String, String)>> {
-    user::hwinfo::disk_usage()
-}
+pub use user::hwinfo::{disk_usage, uptime, version};
+pub use user::usg::{resource_usage, ResourceUsage};
 
 /// Returns a hostname.
 ///
@@ -28,18 +20,6 @@ pub fn hostname() -> Result<String> {
     } else {
         Err(anyhow!("Failed to get a hostname"))
     }
-}
-
-/// Returns how long the system has been running.
-#[must_use]
-pub fn uptime() -> Option<String> {
-    user::hwinfo::uptime()
-}
-
-/// Returns a tuple of OS version and product version.
-#[must_use]
-pub fn version() -> (String, String) {
-    user::hwinfo::get_version()
 }
 
 const FAIL_REQUEST: &str = "Failed to create a request";
