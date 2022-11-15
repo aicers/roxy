@@ -234,13 +234,7 @@ impl Task {
     // * unknown subcommand or invalid argument
     fn hostname(&self, cmd: SubCommand) -> ExecResult {
         match cmd {
-            SubCommand::Get => {
-                if let Ok(host) = hostname::get() {
-                    response(self, host.to_string_lossy().to_string())
-                } else {
-                    Err(ERR_FAIL)
-                }
-            }
+            SubCommand::Get => response(self, roxy::hostname()),
             SubCommand::Set => {
                 let hostname = self.parse::<String>().map_err(|_| ERR_INVALID_COMMAND)?;
                 if hostname::set(&hostname).is_ok() {
