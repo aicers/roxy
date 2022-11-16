@@ -46,8 +46,10 @@ privilege.
 
 * Tips for services
   * netplan, ip
-    * netplan did not set ip address for a interface if it's not running. This can cause an error when delete ip address.
-    * Sometimes netplan did not remove ip address when **netplan apply** command executed with conf ip address removed.
+    * netplan did not set ip address for a interface if it's not running. This
+      can cause an error when delete ip address.
+    * Sometimes netplan did not remove ip address when **netplan apply** command
+      executed with conf ip address removed.
       * Few lines of code are added to solve this problem.
       * **ip** command is used to do this.
 
@@ -56,7 +58,8 @@ privilege.
         ```
 
   * ntp
-    * all **"pool ?.ubuntu.pool.ntp.org iburst"** or **"pool x.x.x.x"** lines should be deleted as a default except appended things by Roxy
+    * all **"pool ?.ubuntu.pool.ntp.org iburst"** or **"pool x.x.x.x"** lines
+      should be deleted as a default except appended things by Roxy
     * Roxy will add new ntp server or replace it
 
       ```text
@@ -79,7 +82,8 @@ privilege.
       ```
 
   * ufw
-    * To enable or disable ufw, **ufw enable/disable** command will be used instead of **systemctl**
+    * To enable or disable ufw, **ufw enable/disable** command will be used
+      instead of **systemctl**
     * **systemctl** did not detect ufw status exactly
 
 ## License
