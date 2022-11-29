@@ -14,7 +14,7 @@ gethostname = "0.4"
 hostname = { version = "0.3", features = ["set"] }
 ipnet = "2.5"
 log = "0.4"
-nix = "0.25"
+nix = "0.26"
 num_enum = "0.5"
 openssl = "0.10"
 pnet = { version = "0.31", features = ["pnet_datalink", "std"] }
