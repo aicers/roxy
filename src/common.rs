@@ -79,7 +79,7 @@ pub struct Nic {
 impl fmt::Display for Nic {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Ok(s) = serde_yaml::to_string(self) {
-            write!(f, "{}", s)
+            write!(f, "{s}")
         } else {
             Ok(())
         }

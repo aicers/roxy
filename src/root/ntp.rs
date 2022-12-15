@@ -32,7 +32,7 @@ pub(crate) fn set(servers: &[String]) -> Result<bool> {
     }
 
     for server in servers {
-        writeln!(new_contents, "server {} iburst", server)
+        writeln!(new_contents, "server {server} iburst")
             .expect("writing to string should not fail");
     }
 

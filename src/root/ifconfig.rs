@@ -55,7 +55,7 @@ pub(crate) struct NetplanYaml {
 impl fmt::Display for NetplanYaml {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Ok(s) = serde_yaml::to_string(self) {
-            write!(f, "{}", s)
+            write!(f, "{s}")
         } else {
             Ok(())
         }
@@ -181,8 +181,8 @@ impl NetplanYaml {
             Err(e) => return Err(e),
         };
 
-        let mut from = format!("/tmp/{}", DEFAULT_NETPLAN_YAML);
-        let mut to = format!("{dir}/{}", DEFAULT_NETPLAN_YAML);
+        let mut from = format!("/tmp/{DEFAULT_NETPLAN_YAML}");
+        let mut to = format!("{dir}/{DEFAULT_NETPLAN_YAML}");
         if let Some((_, _, first)) = files.first() {
             if first != DEFAULT_NETPLAN_YAML {
                 from = format!("/tmp/{first}");
@@ -195,13 +195,13 @@ impl NetplanYaml {
             .create(true)
             .truncate(true)
             .open(&from)?;
-        write!(tmp, "{}", self)?;
+        write!(tmp, "{self}")?;
 
         fs::copy(&from, &to)?;
         fs::remove_file(&from)?;
 
         for (_, _, file) in &files {
-            let path = format!("{dir}/{}", file);
+            let path = format!("{dir}/{file}");
             if path != to {
                 fs::remove_file(&path)?;
             }
@@ -223,7 +223,7 @@ fn load_netplan_yaml(dir: &str) -> Result<NetplanYaml> {
     let files = list_files(dir, None, false)?;
     let mut netplan: Option<NetplanYaml> = None;
     for (_, _, file) in files {
-        let path = format!("{}/{}", dir, file);
+        let path = format!("{dir}/{file}");
         let netplan_cfg = NetplanYaml::new(&path)?;
         if let Some(n) = &mut netplan {
             n.merge(netplan_cfg);
@@ -428,7 +428,7 @@ fn list_files(
     let mut files = Vec::new();
     for path in paths.flatten() {
         let filepath = path.path();
-        let metadata = fs::metadata(&filepath)?;
+        let metadata = fs::metadata(filepath)?;
         let modified: DateTime<Local> = metadata.modified()?.into();
 
         if let Some(filename) = path.path().file_name() {

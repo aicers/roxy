@@ -53,7 +53,7 @@ pub(crate) fn set(remote_addrs: &Option<Vec<String>>) -> Result<bool> {
 
     if let Some(addrs) = remote_addrs {
         for addr in addrs {
-            writeln!(new_contents, "{} {}", DEFAULT_FACILITY, addr)
+            writeln!(new_contents, "{DEFAULT_FACILITY} {addr}")
                 .expect("writing to string should not fail");
         }
     }

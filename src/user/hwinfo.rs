@@ -27,7 +27,7 @@ pub fn uptime() -> Option<String> {
 
     if let Some(mut output) = run_command_output("uptime", None, &["-s"]) {
         output.pop();
-        write!(status, " (boot: {})", output).expect("writing to string should not fail");
+        write!(status, " (boot: {output})").expect("writing to string should not fail");
     }
     if status.is_empty() {
         None

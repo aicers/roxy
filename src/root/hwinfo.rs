@@ -32,8 +32,8 @@ pub(crate) fn set_version(kind: SubCommand, arg: &str) -> Result<()> {
     }
 
     let new_version = match kind {
-        SubCommand::SetOsVersion => format!("OS: {}", arg),
-        SubCommand::SetProductVersion => format!("Product: {}", arg),
+        SubCommand::SetOsVersion => format!("OS: {arg}"),
+        SubCommand::SetProductVersion => format!("Product: {arg}"),
         _ => return Err(anyhow!("invalid command")),
     };
 

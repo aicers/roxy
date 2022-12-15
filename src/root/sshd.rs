@@ -34,7 +34,7 @@ pub(crate) fn set(port: &str) -> Result<bool> {
         }
     }
 
-    writeln!(new_contents, "Port {}", port).expect("writing to string should not fail");
+    writeln!(new_contents, "Port {port}").expect("writing to string should not fail");
 
     let mut file = OpenOptions::new()
         .write(true)

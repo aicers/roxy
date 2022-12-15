@@ -327,7 +327,7 @@ where
     let output = child.wait_with_output()?;
     match serde_json::from_reader::<&[u8], TaskResult>(&output.stdout) {
         Ok(TaskResult::Ok(x)) => {
-            let decoded = base64::decode(&x).map_err(|_| anyhow!("fail to decode response."))?;
+            let decoded = base64::decode(x).map_err(|_| anyhow!("fail to decode response."))?;
             Ok(bincode::deserialize::<T>(&decoded)?)
         }
         Ok(TaskResult::Err(x)) => Err(anyhow!("{}", x)),

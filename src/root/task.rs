@@ -38,7 +38,7 @@ impl Task {
             | Task::Version { cmd: _, arg } => {
                 match bincode::deserialize::<T>(&base64::decode(arg)?) {
                     Ok(r) => {
-                        log_debug(&format!("arg={:?}", r));
+                        log_debug(&format!("arg={r:?}"));
                         Ok(r)
                     }
                     Err(e) => Err(anyhow!("fail to parse argument. {}", e)),
@@ -62,7 +62,7 @@ impl Task {
     // * unsupported command
     // * got error from the executed command
     pub fn execute(&self) -> ExecResult {
-        log_debug(&format!("task {:?}", self));
+        log_debug(&format!("task {self:?}"));
         match self {
             #[cfg(any(target_os = "linux"))]
             Task::PowerOff(_) => self.poweroff(),
@@ -237,7 +237,7 @@ impl Task {
             SubCommand::Get => response(self, roxy::hostname()),
             SubCommand::Set => {
                 let hostname = self.parse::<String>().map_err(|_| ERR_INVALID_COMMAND)?;
-                if hostname::set(&hostname).is_ok() {
+                if hostname::set(hostname).is_ok() {
                     response(self, OKAY)
                 } else {
                     Err(ERR_FAIL)
@@ -423,6 +423,6 @@ fn log_debug(msg: &str) {
         .append(true)
         .open("roxy.log")
     {
-        let _r = writeln!(writer, "{:?}: {}", Local::now(), msg);
+        let _r = writeln!(writer, "{:?}: {msg}", Local::now());
     }
 }
