@@ -1,7 +1,6 @@
+use super::{run_command, run_command_output};
 use anyhow::Result;
 use regex::Regex;
-
-use super::{run_command, run_command_output};
 pub type AccessLists = Vec<(String, String, String, Option<String>, Option<String>)>;
 
 // Gets firewall rules. The result of command `ufw status`.

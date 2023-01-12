@@ -1,5 +1,4 @@
 use std::{fmt, fs::File, io::Read, time::Duration};
-
 use thiserror::Error;
 
 const DEFAULT_VERSION_STRING: &str = "AICE security";

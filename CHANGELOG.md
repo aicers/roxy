@@ -7,6 +7,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Add
+
+- Add `service start|stop|status` command.
+
 ### Changed
 
 - `uptime` returns `Duration` rather than `String`.

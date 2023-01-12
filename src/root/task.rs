@@ -1,6 +1,6 @@
 use super::{
     super::root::{self, ifconfig},
-    NicOutput, SubCommand,
+    services, NicOutput, SubCommand,
 };
 use anyhow::{anyhow, Result};
 use chrono::Local;
@@ -76,8 +76,7 @@ impl Task {
             Task::Syslog { cmd, arg: _ } => self.syslog(*cmd),
             Task::Ufw { cmd, arg: _ } => self.ufw(*cmd),
             Task::Version { cmd, arg: _ } => self.version(*cmd),
-            #[cfg(any(target_os = "linux"))]
-            Task::Service { .. } => Err(ERR_INVALID_COMMAND),
+            Task::Service { cmd, arg: _ } => self.service(*cmd),
             #[cfg(not(target_os = "linux"))]
             _ => Err(ERR_INVALID_COMMAND),
         }
@@ -176,6 +175,21 @@ impl Task {
                     response(self, OKAY)
                 } else {
                     Err(ERR_FAIL)
+                }
+            }
+            _ => Err(ERR_INVALID_COMMAND),
+        }
+    }
+
+    // Start, stop the services or get status
+    fn service(&self, cmd: SubCommand) -> ExecResult {
+        match cmd {
+            SubCommand::Disable | SubCommand::Enable | SubCommand::Status | SubCommand::Update => {
+                let service = self.parse::<String>().map_err(|_| ERR_INVALID_COMMAND)?;
+                match services::service_control(&service, cmd) {
+                    Ok(true) => response(self, "active"),
+                    Ok(false) => response(self, "inactive"),
+                    _ => Err(ERR_FAIL),
                 }
             }
             _ => Err(ERR_INVALID_COMMAND),
@@ -417,12 +431,12 @@ where
 }
 
 // TODO: define the full path for roxy.log file
-fn log_debug(msg: &str) {
+pub fn log_debug(msg: &str) {
     if let Ok(mut writer) = fs::OpenOptions::new()
         .write(true)
         .create(true)
         .append(true)
-        .open("roxy.log")
+        .open("/data/logs/apps/roxy.log")
     {
         let _r = writeln!(writer, "{:?}: {msg}", Local::now());
     }

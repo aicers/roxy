@@ -1,4 +1,3 @@
-use super::run_command;
 use anyhow::{anyhow, Result};
 use std::{
     fmt::Write as FmtWrite,
@@ -65,7 +64,9 @@ pub(crate) fn set(remote_addrs: &Option<Vec<String>>) -> Result<bool> {
 
     file.write_all(new_contents.as_bytes())?;
 
-    run_command("systemctl", None, &["restart", "rsyslog"])
+    systemctl::restart("rsyslog")
+        .map(|status| status.success())
+        .map_err(Into::into)
 }
 
 // Gets rsyslog remote servers.

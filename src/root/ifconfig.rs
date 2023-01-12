@@ -16,7 +16,7 @@ use std::{
 const NETPLAN_PATH: &str = "/etc/netplan";
 const DEFAULT_NETPLAN_YAML: &str = "01-netcfg.yaml";
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct Address {
     #[serde(skip_serializing_if = "Option::is_none")]
     search: Option<Vec<String>>,

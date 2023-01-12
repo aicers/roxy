@@ -1,4 +1,3 @@
-use super::run_command;
 use anyhow::Result;
 use std::{
     fmt::Write as FmtWrite,
@@ -43,7 +42,9 @@ pub(crate) fn set(port: &str) -> Result<bool> {
 
     file.write_all(new_contents.as_bytes())?;
 
-    run_command("systemctl", None, &["restart", "sshd"])
+    systemctl::restart("sshd")
+        .map(|status| status.success())
+        .map_err(Into::into)
 }
 
 // Gets sshd port number
