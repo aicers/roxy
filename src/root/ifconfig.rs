@@ -122,17 +122,12 @@ impl NetplanYaml {
     // Removes interface address, gateway4, nameservers. apply() should be run to apply this change.
     // Use set() command instead of delete() if possible
     fn delete(&mut self, ifname: &str, nic_output: &NicOutput) -> Result<()> {
-        let ifs = if let Some((_, ifs)) = self
+        let (_, ifs) = self
             .network
             .ethernets
             .iter_mut()
-            .find(|(name, _)| *name == *ifname)
-        {
-            ifs
-        } else {
-            return Err(anyhow!("interface not found!"));
-        };
-
+            .find(|x| x.0 == *ifname)
+            .ok_or_else(|| anyhow!("Interface {} not found", ifname))?;
         if let Some(addrs) = &nic_output.addresses {
             for addr in addrs {
                 if let Some(ifs_addrs) = &mut ifs.addresses {
