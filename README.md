@@ -23,12 +23,10 @@ privilege.
 
 * To control machine, following utilities and files are used
   * utilities
-    * df
     * ip
     * netplan
     * systemctl (ntp, rsyslog, sshd)
     * ufw
-    * uptime
   * files
     * /etc/netplan/01-netcfg.yaml
     * /etc/ntp.conf
