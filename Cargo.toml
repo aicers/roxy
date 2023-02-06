@@ -17,7 +17,7 @@ log = "0.4"
 nix = "0.26"
 num_enum = "0.5"
 openssl = "0.10"
-pnet = { version = "0.31", features = ["pnet_datalink", "std"] }
+pnet = { version = "0.33", features = ["pnet_datalink", "std"] }
 regex = "1.7"
 serde = { version = "1", features = ["derive"] }
 serde_derive = "1"
