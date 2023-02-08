@@ -5,7 +5,6 @@ use anyhow::{anyhow, Result};
 pub use interface::{Nic, NicOutput};
 use serde::{Deserialize, Serialize};
 pub use services::waitfor_up;
-use std::process::Command;
 
 pub const DEFAULT_PATH_ENV: &str = "/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/aice/bin";
 
@@ -65,30 +64,4 @@ pub enum SubCommand {
     SetProductVersion,
     Status,
     Update,
-}
-
-/// Runs a linux command and returns its output.
-#[must_use]
-pub fn run_command_output(cmd: &str, path: Option<&[&str]>, args: &[&str]) -> Option<String> {
-    let mut cmd = Command::new(cmd);
-    let val = if let Some(path) = path {
-        let mut temp = DEFAULT_PATH_ENV.to_string();
-        for p in path {
-            temp.push(':');
-            temp.push_str(p);
-        }
-        temp
-    } else {
-        DEFAULT_PATH_ENV.to_string()
-    };
-    cmd.env("PATH", &val);
-    for arg in args {
-        cmd.arg(arg);
-    }
-    if let Ok(output) = cmd.output() {
-        if output.status.success() {
-            return Some(String::from_utf8_lossy(&output.stdout).into_owned());
-        }
-    }
-    None
 }

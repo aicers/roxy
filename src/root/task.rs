@@ -1,7 +1,5 @@
-use super::{
-    super::root::{self, ifconfig},
-    services, NicOutput, SubCommand,
-};
+use super::{NicOutput, SubCommand};
+use crate::root;
 use anyhow::{anyhow, Result};
 use chrono::Local;
 use data_encoding::BASE64;
@@ -134,18 +132,20 @@ impl Task {
                 }
             }
             SubCommand::Disable => {
-                if root::ufw::disable().is_ok() {
-                    response(self, OKAY)
-                } else {
-                    Err(ERR_FAIL)
+                if let Ok(ret) = root::ufw::disable() {
+                    if ret {
+                        return response(self, OKAY);
+                    }
                 }
+                Err(ERR_FAIL)
             }
             SubCommand::Enable => {
-                if root::ufw::enable().is_ok() {
-                    response(self, OKAY)
-                } else {
-                    Err(ERR_FAIL)
+                if let Ok(ret) = root::ufw::enable() {
+                    if ret {
+                        return response(self, OKAY);
+                    }
                 }
+                Err(ERR_FAIL)
             }
             SubCommand::Init => {
                 if root::ufw::reset().is_ok() {
@@ -186,7 +186,7 @@ impl Task {
         match cmd {
             SubCommand::Disable | SubCommand::Enable | SubCommand::Status | SubCommand::Update => {
                 let service = self.parse::<String>().map_err(|_| ERR_INVALID_COMMAND)?;
-                match services::service_control(&service, cmd) {
+                match root::services::service_control(&service, cmd) {
                     Ok(true) => response(self, "active"),
                     Ok(false) => response(self, "inactive"),
                     _ => Err(ERR_FAIL),
@@ -281,7 +281,7 @@ impl Task {
                 let (ifname, nic_output) = self
                     .parse::<(String, NicOutput)>()
                     .map_err(|_| ERR_INVALID_COMMAND)?;
-                if ifconfig::delete(&ifname, &nic_output).is_ok() {
+                if root::ifconfig::delete(&ifname, &nic_output).is_ok() {
                     response(self, OKAY)
                 } else {
                     Err(ERR_FAIL)
@@ -291,14 +291,14 @@ impl Task {
                 let arg = self
                     .parse::<Option<String>>()
                     .map_err(|_| ERR_INVALID_COMMAND)?;
-                match ifconfig::get(&arg) {
+                match root::ifconfig::get(&arg) {
                     Ok(ret) => response(self, ret),
                     Err(_) => Err(ERR_FAIL),
                 }
             }
             SubCommand::Init => {
                 let ifname = self.parse::<String>().map_err(|_| ERR_INVALID_COMMAND)?;
-                if ifconfig::init(&ifname).is_ok() {
+                if root::ifconfig::init(&ifname).is_ok() {
                     response(self, OKAY)
                 } else {
                     Err(ERR_FAIL)
@@ -306,7 +306,7 @@ impl Task {
             }
             SubCommand::List => {
                 if let Ok(arg) = self.parse::<Option<String>>() {
-                    response(self, ifconfig::get_interface_names(&arg))
+                    response(self, root::ifconfig::get_interface_names(&arg))
                 } else {
                     Err(ERR_INVALID_COMMAND)
                 }
@@ -315,11 +315,9 @@ impl Task {
                 let (ifname, nic_output) = self
                     .parse::<(String, NicOutput)>()
                     .map_err(|_| ERR_INVALID_COMMAND)?;
-                //for (ifname, nic_output) in ifs {
-                if ifconfig::set(&ifname, &nic_output).is_err() {
+                if root::ifconfig::set(&ifname, &nic_output).is_err() {
                     return Err(ERR_FAIL);
                 }
-                //}
                 response(self, OKAY)
             }
             _ => Err(ERR_INVALID_COMMAND),

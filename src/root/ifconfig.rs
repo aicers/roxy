@@ -1,8 +1,9 @@
-use super::{run_command, Nic, NicOutput};
+use super::{Nic, NicOutput};
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Local};
 use ipnet::IpNet;
 use pnet::datalink::interfaces;
+use roxy::common::DEFAULT_PATH_ENV;
 use serde_derive::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::{
@@ -11,6 +12,7 @@ use std::{
     fs::{self, File, OpenOptions},
     io::{Read, Write},
     net::IpAddr,
+    process::Command,
 };
 
 const NETPLAN_PATH: &str = "/etc/netplan";
@@ -202,7 +204,7 @@ impl NetplanYaml {
             }
         }
 
-        run_command("netplan", None, &["apply"])?;
+        run_command("netplan", &["apply"])?;
         Ok(())
     }
 }
@@ -268,8 +270,8 @@ pub(crate) fn init(ifname: &str) -> Result<()> {
 
             // init running interface setting with ifconfig command
             // because 'netplan apply' command would not init the running settings.
-            run_command("ifconfig", None, &[ifname, "0.0.0.0"])?;
-            run_command("ifconfig", None, &[ifname, "up"])?;
+            run_command("ifconfig", &[ifname, "0.0.0.0"])?;
+            run_command("ifconfig", &[ifname, "up"])?;
 
             return Ok(());
         }
@@ -390,7 +392,7 @@ pub(crate) fn delete(ifname: &str, nic_output: &NicOutput) -> Result<()> {
         for addr in addrs {
             // apply to running interface
             // if the device does not have this ip address, then this command will return ERROR!!!!
-            run_command("ip", None, &["addr", "del", addr, "dev", ifname])?;
+            run_command("ip", &["addr", "del", addr, "dev", ifname])?;
         }
     }
     Ok(())
@@ -437,6 +439,7 @@ fn list_files(
                 } else if subdir && metadata.is_dir() {
                     files.push((0, String::new(), filename.to_string()));
                     /*
+                    // if it's required to traverse the directory recursively, uncomment this code
                     if let Ok(ret) = list_files(filename, except, subdir) {
                         for (size, modified_time, name) in ret {
                             files.push((size, modified_time, format!("{}/{}", filename, name)));
@@ -454,4 +457,18 @@ fn list_files(
     }
     files.sort_by(|a, b| a.2.cmp(&b.2));
     Ok(files)
+}
+
+fn run_command(cmd: &str, args: &[&str]) -> Result<bool> {
+    let mut cmd = Command::new(cmd);
+    cmd.env("PATH", DEFAULT_PATH_ENV);
+    for arg in args {
+        if !arg.is_empty() {
+            cmd.arg(arg);
+        }
+    }
+    match cmd.status() {
+        Ok(status) => Ok(status.success()),
+        Err(e) => Err(e.into()),
+    }
 }

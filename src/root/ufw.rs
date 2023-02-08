@@ -1,7 +1,11 @@
-use super::{run_command, run_command_output};
+use super::services::service_control;
 use anyhow::Result;
 use regex::Regex;
+use roxy::common::DEFAULT_PATH_ENV;
+use std::process::Command;
 pub type AccessLists = Vec<(String, String, String, Option<String>, Option<String>)>;
+
+const UFW_UNIT: &str = "ufw";
 
 // Gets firewall rules. The result of command `ufw status`.
 // Currently only return IPv4 rules.
@@ -38,7 +42,7 @@ Anywhere on eth0           ALLOW IN    203.0.113.102"#;
 // * fail to execute ufw status command
 // * fail to compile regex to parse ufw rules
 pub(crate) fn get() -> Result<Option<AccessLists>> {
-    if let Some(output) = run_command_output("ufw", None, &["status"]) {
+    if let Some(output) = run_ufw_output(&["status"]) {
         let re_action = Regex::new(r#"(?P<a>ALLOW|DENY)\s(?P<d>IN|OUT)"#)?;
         let re_dev = Regex::new(r#"(on\s[a-z0-9]+)"#)?;
         let re_proto = Regex::new(r#"(/[a-z]+)"#)?;
@@ -111,7 +115,7 @@ pub(crate) fn get() -> Result<Option<AccessLists>> {
 // * fail to run ufw command
 pub(crate) fn add(args: &[String]) -> Result<()> {
     for rule in args {
-        run_command("ufw", None, &[rule.as_str()])?;
+        run_ufw(&[rule.as_str()])?;
     }
     Ok(())
 }
@@ -131,39 +135,38 @@ pub(crate) fn add(args: &[String]) -> Result<()> {
 // * fail to run ufw delete command
 pub(crate) fn delete(args: &[String]) -> Result<()> {
     for rule_id in args {
-        run_command("ufw", None, &["delete", rule_id])?;
+        run_ufw(&["delete", rule_id])?;
     }
 
     Ok(())
 }
 
 // Enables ufw
+// The default ufw service must be re-registered to the system by the updated guide.
 //
 // # Errors
 //
 // * fail to run ufw enable command
 pub(crate) fn enable() -> Result<bool> {
-    run_command("ufw", None, &["enable"])
+    service_control(UFW_UNIT, roxy::common::SubCommand::Enable)
 }
 
 // Disables ufw
+// The default ufw service must be re-registered to the system by the updated guide.
 //
 // # Errors
 //
 // * fail to run ufw disable command
 pub(crate) fn disable() -> Result<bool> {
-    run_command("ufw", None, &["disable"])
+    service_control(UFW_UNIT, roxy::common::SubCommand::Disable)
 }
 
 // Returns true if ufw is active
 // Be careful. systemctl status and ufw status may return different value.
+// To clear this issue, ufw must be re-registered to the system by the updated guide.
 #[must_use]
 pub(crate) fn is_active() -> bool {
-    if let Some(output) = run_command_output("ufw", None, &["status"]) {
-        output.contains("Status: active")
-    } else {
-        false
-    }
+    service_control(UFW_UNIT, roxy::common::SubCommand::Status).map_or(false, |ret| ret)
 }
 
 // `ufw reset` command
@@ -172,5 +175,33 @@ pub(crate) fn is_active() -> bool {
 //
 // * fail to run ufw reset command
 pub(crate) fn reset() -> Result<bool> {
-    run_command("ufw", None, &["reset"])
+    run_ufw(&["reset"])
+}
+
+fn run_ufw(args: &[&str]) -> Result<bool> {
+    let mut cmd = Command::new(UFW_UNIT);
+    cmd.env("PATH", DEFAULT_PATH_ENV);
+    for arg in args {
+        if !arg.is_empty() {
+            cmd.arg(arg);
+        }
+    }
+    match cmd.status() {
+        Ok(status) => Ok(status.success()),
+        Err(e) => Err(e.into()),
+    }
+}
+
+fn run_ufw_output(args: &[&str]) -> Option<String> {
+    let mut cmd = Command::new(UFW_UNIT);
+    cmd.env("PATH", DEFAULT_PATH_ENV);
+    for arg in args {
+        cmd.arg(arg);
+    }
+    if let Ok(output) = cmd.output() {
+        if output.status.success() {
+            return Some(String::from_utf8_lossy(&output.stdout).into_owned());
+        }
+    }
+    None
 }

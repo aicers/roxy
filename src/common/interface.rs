@@ -52,6 +52,31 @@ pub struct NicOutput {
     pub nameservers: Option<Vec<String>>,
 }
 
+impl fmt::Display for NicOutput {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(v) = &self.addresses {
+            writeln!(f, "\taddresses: {v:?}")?;
+        } else {
+            writeln!(f, "\taddresses: -")?;
+        }
+        if let Some(v) = self.dhcp4 {
+            writeln!(f, "\tdhcp4: {v}")?;
+        } else {
+            writeln!(f, "\tdhcp4: -")?;
+        }
+        if let Some(v) = &self.gateway4 {
+            writeln!(f, "\tgateway4: {v}")?;
+        } else {
+            writeln!(f, "\tgateway4: -")?;
+        }
+        if let Some(v) = &self.nameservers {
+            write!(f, "\tnameservers: {v:?}")
+        } else {
+            write!(f, "\tnameservers: -")
+        }
+    }
+}
+
 impl NicOutput {
     #[must_use]
     pub fn new(
