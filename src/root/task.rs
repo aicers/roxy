@@ -33,7 +33,6 @@ impl Task {
             | Task::Service { cmd: _, arg }
             | Task::Sshd { cmd: _, arg }
             | Task::Syslog { cmd: _, arg }
-            | Task::Ufw { cmd: _, arg }
             | Task::Version { cmd: _, arg } => {
                 match bincode::deserialize::<T>(&BASE64.decode(arg.as_bytes())?) {
                     Ok(r) => {
@@ -72,10 +71,8 @@ impl Task {
             Task::Ntp { cmd, arg: _ } => self.ntp(*cmd),
             Task::Sshd { cmd, arg: _ } => self.sshd(*cmd),
             Task::Syslog { cmd, arg: _ } => self.syslog(*cmd),
-            Task::Ufw { cmd, arg: _ } => self.ufw(*cmd),
             Task::Version { cmd, arg: _ } => self.version(*cmd),
             Task::Service { cmd, arg: _ } => self.service(*cmd),
-            #[cfg(not(target_os = "linux"))]
             _ => Err(ERR_INVALID_COMMAND),
         }
     }
@@ -92,71 +89,6 @@ impl Task {
         nix::sys::reboot::reboot(nix::sys::reboot::RebootMode::RB_POWER_OFF)
             .map_err(|_| ERR_INVALID_COMMAND)?;
         response(self, OKAY)
-    }
-
-    // # Return
-    //
-    // * Option<Vec<(String, String, String, Option<String>, Option<String>)>>: Get command.
-    //   Vec<(Action, From, To, Protocol, Interface)>
-    // * OKAY: Get, Delete, Disable, Enable command
-    // * true/false: Status command
-    //
-    // # Errors
-    //
-    // * fail to execute command
-    // * unknown subcommand or invalid argument
-    fn ufw(&self, cmd: SubCommand) -> ExecResult {
-        match cmd {
-            SubCommand::Get => {
-                let ret = root::ufw::get().map_err(|_| ERR_FAIL)?;
-                response(self, ret)
-            }
-            SubCommand::Add => {
-                let args = self
-                    .parse::<Vec<String>>()
-                    .map_err(|_| ERR_INVALID_COMMAND)?;
-                if root::ufw::add(&args).is_ok() {
-                    response(self, OKAY)
-                } else {
-                    Err(ERR_FAIL)
-                }
-            }
-            SubCommand::Delete => {
-                let args = self
-                    .parse::<Vec<String>>()
-                    .map_err(|_| ERR_INVALID_COMMAND)?;
-                if root::ufw::delete(&args).is_ok() {
-                    response(self, OKAY)
-                } else {
-                    Err(ERR_FAIL)
-                }
-            }
-            SubCommand::Disable => {
-                if let Ok(ret) = root::ufw::disable() {
-                    if ret {
-                        return response(self, OKAY);
-                    }
-                }
-                Err(ERR_FAIL)
-            }
-            SubCommand::Enable => {
-                if let Ok(ret) = root::ufw::enable() {
-                    if ret {
-                        return response(self, OKAY);
-                    }
-                }
-                Err(ERR_FAIL)
-            }
-            SubCommand::Init => {
-                if root::ufw::reset().is_ok() {
-                    response(self, OKAY)
-                } else {
-                    Err(ERR_FAIL)
-                }
-            }
-            SubCommand::Status => response(self, root::ufw::is_active()),
-            _ => Err(ERR_INVALID_COMMAND),
-        }
     }
 
     // Gets or sets version for OS and Product
@@ -181,14 +113,13 @@ impl Task {
         }
     }
 
-    // Start, stop the services or get status
+    // Start, stop, status(is-active), restart(update) the services or get status
     fn service(&self, cmd: SubCommand) -> ExecResult {
         match cmd {
             SubCommand::Disable | SubCommand::Enable | SubCommand::Status | SubCommand::Update => {
                 let service = self.parse::<String>().map_err(|_| ERR_INVALID_COMMAND)?;
                 match root::services::service_control(&service, cmd) {
-                    Ok(true) => response(self, "active"),
-                    Ok(false) => response(self, "inactive"),
+                    Ok(r) => response(self, r),
                     _ => Err(ERR_FAIL),
                 }
             }

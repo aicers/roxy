@@ -460,15 +460,9 @@ fn list_files(
 }
 
 fn run_command(cmd: &str, args: &[&str]) -> Result<bool> {
-    let mut cmd = Command::new(cmd);
-    cmd.env("PATH", DEFAULT_PATH_ENV);
-    for arg in args {
-        if !arg.is_empty() {
-            cmd.arg(arg);
-        }
-    }
-    match cmd.status() {
-        Ok(status) => Ok(status.success()),
-        Err(e) => Err(e.into()),
-    }
+    let status = Command::new(cmd)
+        .env("PATH", DEFAULT_PATH_ENV)
+        .args(args)
+        .status()?;
+    Ok(status.success())
 }

@@ -18,9 +18,9 @@ const FAIL_REQUEST: &str = "Failed to create a request";
 /// * Return error if invalid subcommand is specified
 /// * Return error if target service is not registered as a systemctl service
 /// * Return error if it failed to execute the command
-pub fn service_control(subcmd: SubCommand, service: String) -> Result<String> {
+pub fn service_control(subcmd: SubCommand, service: String) -> Result<bool> {
     if let Ok(req) = NodeRequest::new::<String>(Node::Service(subcmd), service) {
-        run_roxy::<String>(req)
+        run_roxy::<bool>(req)
     } else {
         Err(anyhow!(FAIL_REQUEST))
     }
