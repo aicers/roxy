@@ -4,6 +4,7 @@ use super::{
 };
 use anyhow::{anyhow, Result};
 use chrono::Local;
+use data_encoding::BASE64;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::Write;
@@ -36,7 +37,7 @@ impl Task {
             | Task::Syslog { cmd: _, arg }
             | Task::Ufw { cmd: _, arg }
             | Task::Version { cmd: _, arg } => {
-                match bincode::deserialize::<T>(&base64::decode(arg)?) {
+                match bincode::deserialize::<T>(&BASE64.decode(arg.as_bytes())?) {
                     Ok(r) => {
                         log_debug(&format!("arg={r:?}"));
                         Ok(r)
@@ -407,7 +408,7 @@ where
             log::error!("reponse is too long. Task: {:?}", taskcode);
             Err(ERR_MESSAGE_TOO_LONG)
         } else {
-            Ok(base64::encode(message))
+            Ok(BASE64.encode(&message))
         }
     } else {
         log::error!("failed to serialize response message. Task: {:?}", taskcode);

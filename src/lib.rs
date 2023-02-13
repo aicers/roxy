@@ -3,6 +3,7 @@ mod user;
 
 use anyhow::{anyhow, Result};
 use common::{NicOutput, Node, NodeRequest, SubCommand};
+use data_encoding::BASE64;
 use serde::Deserialize;
 use std::process::{Command, Stdio};
 
@@ -327,7 +328,9 @@ where
     let output = child.wait_with_output()?;
     match serde_json::from_reader::<&[u8], TaskResult>(&output.stdout) {
         Ok(TaskResult::Ok(x)) => {
-            let decoded = base64::decode(x).map_err(|_| anyhow!("fail to decode response."))?;
+            let decoded = BASE64
+                .decode(x.as_bytes())
+                .map_err(|_| anyhow!("fail to decode response."))?;
             Ok(bincode::deserialize::<T>(&decoded)?)
         }
         Ok(TaskResult::Err(x)) => Err(anyhow!("{}", x)),
