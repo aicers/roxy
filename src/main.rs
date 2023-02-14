@@ -1,5 +1,6 @@
 mod root;
 
+use data_encoding::BASE64;
 use root::task::{ExecResult, Task, ERR_INVALID_COMMAND};
 use roxy::common::{self, Node, NodeRequest};
 use std::{
@@ -21,7 +22,7 @@ fn main() {
         }
     };
 
-    let arg = base64::encode(&nr.arg);
+    let arg = BASE64.encode(&nr.arg);
     let task = match nr.kind {
         Node::Hostname(cmd) => Task::Hostname { cmd, arg },
         Node::Interface(cmd) => Task::Interface { cmd, arg },
