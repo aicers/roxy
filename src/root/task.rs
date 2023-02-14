@@ -1,7 +1,5 @@
-use super::{
-    super::root::{self, ifconfig},
-    NicOutput, SubCommand,
-};
+use super::{NicOutput, SubCommand};
+use crate::root;
 use anyhow::{anyhow, Result};
 use chrono::Local;
 use data_encoding::BASE64;
@@ -35,7 +33,6 @@ impl Task {
             | Task::Service { cmd: _, arg }
             | Task::Sshd { cmd: _, arg }
             | Task::Syslog { cmd: _, arg }
-            | Task::Ufw { cmd: _, arg }
             | Task::Version { cmd: _, arg } => {
                 match bincode::deserialize::<T>(&BASE64.decode(arg.as_bytes())?) {
                     Ok(r) => {
@@ -74,11 +71,8 @@ impl Task {
             Task::Ntp { cmd, arg: _ } => self.ntp(*cmd),
             Task::Sshd { cmd, arg: _ } => self.sshd(*cmd),
             Task::Syslog { cmd, arg: _ } => self.syslog(*cmd),
-            Task::Ufw { cmd, arg: _ } => self.ufw(*cmd),
             Task::Version { cmd, arg: _ } => self.version(*cmd),
-            #[cfg(any(target_os = "linux"))]
-            Task::Service { .. } => Err(ERR_INVALID_COMMAND),
-            #[cfg(not(target_os = "linux"))]
+            Task::Service { cmd, arg: _ } => self.service(*cmd),
             _ => Err(ERR_INVALID_COMMAND),
         }
     }
@@ -97,69 +91,6 @@ impl Task {
         response(self, OKAY)
     }
 
-    // # Return
-    //
-    // * Option<Vec<(String, String, String, Option<String>, Option<String>)>>: Get command.
-    //   Vec<(Action, From, To, Protocol, Interface)>
-    // * OKAY: Get, Delete, Disable, Enable command
-    // * true/false: Status command
-    //
-    // # Errors
-    //
-    // * fail to execute command
-    // * unknown subcommand or invalid argument
-    fn ufw(&self, cmd: SubCommand) -> ExecResult {
-        match cmd {
-            SubCommand::Get => {
-                let ret = root::ufw::get().map_err(|_| ERR_FAIL)?;
-                response(self, ret)
-            }
-            SubCommand::Add => {
-                let args = self
-                    .parse::<Vec<String>>()
-                    .map_err(|_| ERR_INVALID_COMMAND)?;
-                if root::ufw::add(&args).is_ok() {
-                    response(self, OKAY)
-                } else {
-                    Err(ERR_FAIL)
-                }
-            }
-            SubCommand::Delete => {
-                let args = self
-                    .parse::<Vec<String>>()
-                    .map_err(|_| ERR_INVALID_COMMAND)?;
-                if root::ufw::delete(&args).is_ok() {
-                    response(self, OKAY)
-                } else {
-                    Err(ERR_FAIL)
-                }
-            }
-            SubCommand::Disable => {
-                if root::ufw::disable().is_ok() {
-                    response(self, OKAY)
-                } else {
-                    Err(ERR_FAIL)
-                }
-            }
-            SubCommand::Enable => {
-                if root::ufw::enable().is_ok() {
-                    response(self, OKAY)
-                } else {
-                    Err(ERR_FAIL)
-                }
-            }
-            SubCommand::Init => {
-                if root::ufw::reset().is_ok() {
-                    response(self, OKAY)
-                } else {
-                    Err(ERR_FAIL)
-                }
-            }
-            SubCommand::Status => response(self, root::ufw::is_active()),
-            _ => Err(ERR_INVALID_COMMAND),
-        }
-    }
-
     // Gets or sets version for OS and Product
     //
     // # Return
@@ -176,6 +107,20 @@ impl Task {
                     response(self, OKAY)
                 } else {
                     Err(ERR_FAIL)
+                }
+            }
+            _ => Err(ERR_INVALID_COMMAND),
+        }
+    }
+
+    // Start, stop, status(is-active), restart(update) the services or get status
+    fn service(&self, cmd: SubCommand) -> ExecResult {
+        match cmd {
+            SubCommand::Disable | SubCommand::Enable | SubCommand::Status | SubCommand::Update => {
+                let service = self.parse::<String>().map_err(|_| ERR_INVALID_COMMAND)?;
+                match root::services::service_control(&service, cmd) {
+                    Ok(r) => response(self, r),
+                    _ => Err(ERR_FAIL),
                 }
             }
             _ => Err(ERR_INVALID_COMMAND),
@@ -267,7 +212,7 @@ impl Task {
                 let (ifname, nic_output) = self
                     .parse::<(String, NicOutput)>()
                     .map_err(|_| ERR_INVALID_COMMAND)?;
-                if ifconfig::delete(&ifname, &nic_output).is_ok() {
+                if root::ifconfig::delete(&ifname, &nic_output).is_ok() {
                     response(self, OKAY)
                 } else {
                     Err(ERR_FAIL)
@@ -277,14 +222,14 @@ impl Task {
                 let arg = self
                     .parse::<Option<String>>()
                     .map_err(|_| ERR_INVALID_COMMAND)?;
-                match ifconfig::get(&arg) {
+                match root::ifconfig::get(&arg) {
                     Ok(ret) => response(self, ret),
                     Err(_) => Err(ERR_FAIL),
                 }
             }
             SubCommand::Init => {
                 let ifname = self.parse::<String>().map_err(|_| ERR_INVALID_COMMAND)?;
-                if ifconfig::init(&ifname).is_ok() {
+                if root::ifconfig::init(&ifname).is_ok() {
                     response(self, OKAY)
                 } else {
                     Err(ERR_FAIL)
@@ -292,7 +237,7 @@ impl Task {
             }
             SubCommand::List => {
                 if let Ok(arg) = self.parse::<Option<String>>() {
-                    response(self, ifconfig::get_interface_names(&arg))
+                    response(self, root::ifconfig::get_interface_names(&arg))
                 } else {
                     Err(ERR_INVALID_COMMAND)
                 }
@@ -301,11 +246,9 @@ impl Task {
                 let (ifname, nic_output) = self
                     .parse::<(String, NicOutput)>()
                     .map_err(|_| ERR_INVALID_COMMAND)?;
-                //for (ifname, nic_output) in ifs {
-                if ifconfig::set(&ifname, &nic_output).is_err() {
+                if root::ifconfig::set(&ifname, &nic_output).is_err() {
                     return Err(ERR_FAIL);
                 }
-                //}
                 response(self, OKAY)
             }
             _ => Err(ERR_INVALID_COMMAND),
@@ -417,12 +360,12 @@ where
 }
 
 // TODO: define the full path for roxy.log file
-fn log_debug(msg: &str) {
+pub fn log_debug(msg: &str) {
     if let Ok(mut writer) = fs::OpenOptions::new()
         .write(true)
         .create(true)
         .append(true)
-        .open("roxy.log")
+        .open("/data/logs/apps/roxy.log")
     {
         let _r = writeln!(writer, "{:?}: {msg}", Local::now());
     }

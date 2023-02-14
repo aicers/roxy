@@ -1,4 +1,3 @@
-use super::{run_command, run_command_output};
 use anyhow::Result;
 use regex::Regex;
 use std::{
@@ -43,7 +42,9 @@ pub(crate) fn set(servers: &[String]) -> Result<bool> {
 
     file.write_all(new_contents.as_bytes())?;
 
-    run_command("systemctl", None, &["restart", "ntp"])
+    systemctl::restart("ntp")
+        .map(|status| status.success())
+        .map_err(Into::into)
 }
 
 // Get ntp server addresses.
@@ -73,30 +74,30 @@ pub(crate) fn get() -> Result<Option<Vec<String>>> {
     }
 }
 
-// True if ntp is active
+// True if ntp service is active
 #[must_use]
 pub(crate) fn is_active() -> bool {
-    if let Some(output) = run_command_output("systemctl", None, &["is-active", "ntp"]) {
-        output == "active"
-    } else {
-        false
-    }
+    systemctl::is_active("ntp").map_or(false, |ret| ret)
 }
 
-// Enable ntp client service
+// Start ntp client service
 //
 // # Errors
 //
-// * fail to run systemctl start ntp command
+// * systemctl return error when starting ntp service
 pub(crate) fn enable() -> Result<bool> {
-    run_command("systemctl", None, &["start", "ntp"])
+    systemctl::restart("ntp")
+        .map(|status| status.success())
+        .map_err(Into::into)
 }
 
-// Disable ntp client service
+// Stop ntp client service
 //
 // # Errors
 //
-// * fail to run systemctl stop ntp command
+// * systemctl return error when stopping ntp service
 pub(crate) fn disable() -> Result<bool> {
-    run_command("systemctl", None, &["stop", "ntp"])
+    systemctl::stop("ntp")
+        .map(|status| status.success())
+        .map_err(Into::into)
 }
