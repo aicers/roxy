@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 anyhow = "1"
 bincode = "1.3"
-chrono = "0.4"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
 config = { version = "0.13", features = ["toml"], default-features = false }
 data-encoding = "2"
 flate2 = "1"
