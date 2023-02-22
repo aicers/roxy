@@ -15,6 +15,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 - `uptime` returns `Duration` rather than `String`.
 
+### Security
+
+- Turned off the default features of chrono that might casue SEGFAULT. See
+  [RUSTSEC-2020-0071](https://rustsec.org/advisories/RUSTSEC-2020-0071)
+  for details.
+
 ## [0.1.0] - 2022-11-15
 
 ### Added
