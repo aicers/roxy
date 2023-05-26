@@ -7,6 +7,7 @@ use std::{
 
 const SSHD_CONFIG: &str = "/etc/ssh/sshd_config";
 const SSHD_DEFAULT_PORT: u16 = 22;
+const SSHD_SERVICE_UNIT: &str = "sshd";
 
 // Sets sshd port.
 //
@@ -42,7 +43,7 @@ pub(crate) fn set(port: &str) -> Result<bool> {
 
     file.write_all(new_contents.as_bytes())?;
 
-    systemctl::restart("sshd")
+    systemctl::restart(SSHD_SERVICE_UNIT)
         .map(|status| status.success())
         .map_err(Into::into)
 }
@@ -67,4 +68,11 @@ pub(crate) fn get() -> Result<u16> {
         }
     }
     Ok(SSHD_DEFAULT_PORT)
+}
+
+// (re)start sshd service
+pub(crate) fn start() -> Result<bool> {
+    systemctl::restart(SSHD_SERVICE_UNIT)
+        .map(|status| status.success())
+        .map_err(Into::into)
 }
