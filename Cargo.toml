@@ -10,7 +10,7 @@ chrono = { version = "0.4", default-features = false, features = ["clock"] }
 data-encoding = "2"
 gethostname = "0.4"
 hostname = { version = "0.3", features = ["set"] }
-ipnet = "2.7"
+ipnet = "2.8"
 log = "0.4"
 nix = "0.26"
 pnet = { version = "0.33", features = ["pnet_datalink", "std"] }
