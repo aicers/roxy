@@ -62,9 +62,9 @@ impl Task {
     pub fn execute(&self) -> ExecResult {
         log_debug(&format!("task {self:?}"));
         match self {
-            #[cfg(any(target_os = "linux"))]
+            #[cfg(target_os = "linux")]
             Task::PowerOff(_) => self.poweroff(),
-            #[cfg(any(target_os = "linux"))]
+            #[cfg(target_os = "linux")]
             Task::Reboot(_) => self.reboot(),
             Task::Hostname { cmd, arg: _ } => self.hostname(*cmd),
             Task::Interface { cmd, arg: _ } => self.interface(*cmd),
@@ -77,14 +77,14 @@ impl Task {
         }
     }
 
-    #[cfg(any(target_os = "linux"))]
+    #[cfg(target_os = "linux")]
     fn reboot(&self) -> ExecResult {
         nix::sys::reboot::reboot(nix::sys::reboot::RebootMode::RB_AUTOBOOT)
             .map_err(|_| ERR_INVALID_COMMAND)?;
         response(self, OKAY)
     }
 
-    #[cfg(any(target_os = "linux"))]
+    #[cfg(target_os = "linux")]
     fn poweroff(&self) -> ExecResult {
         nix::sys::reboot::reboot(nix::sys::reboot::RebootMode::RB_POWER_OFF)
             .map_err(|_| ERR_INVALID_COMMAND)?;
