@@ -53,7 +53,7 @@ pub(crate) fn set(servers: &[String]) -> Result<bool> {
 //
 // * fail to open /etc/ntp.conf
 pub(crate) fn get() -> Result<Option<Vec<String>>> {
-    let re = Regex::new(r#"server\s+([a-z0-9\.]+)\s+iburst"#)?;
+    let re = Regex::new(r"server\s+([a-z0-9\.]+)\s+iburst")?;
     let contents = fs::read_to_string(NTP_CONF)?;
     let lines = contents.lines();
 
