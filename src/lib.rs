@@ -348,6 +348,10 @@ pub enum TaskResult {
 /// * Invalid json syntax in response message
 /// * base64 decode error for reponse message
 /// * Received execution error from roxy
+///
+/// # Panics
+///
+/// * panic if it failed to convert request message to json
 pub fn run_roxy<T>(req: NodeRequest) -> Result<T>
 where
     T: serde::de::DeserializeOwned,
