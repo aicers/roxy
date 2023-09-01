@@ -5,9 +5,15 @@ file is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 this project adheres to [Semantic
 Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Add `process_list` function to return a list of processes.
+
 ## [0.2.0] - 2023-03-22
 
-### Add
+### Added
 
 - Add `service start|stop|status` command.
 
