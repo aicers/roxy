@@ -8,6 +8,7 @@ use data_encoding::BASE64;
 use serde::Deserialize;
 use std::process::{Command, Stdio};
 pub use user::hwinfo::{uptime, version};
+pub use user::process::{process_list, Process};
 pub use user::usg::{resource_usage, ResourceUsage};
 const FAIL_REQUEST: &str = "Failed to create a request";
 
