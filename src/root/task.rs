@@ -362,7 +362,6 @@ where
 // TODO: define the full path for roxy.log file
 pub fn log_debug(msg: &str) {
     if let Ok(mut writer) = fs::OpenOptions::new()
-        .write(true)
         .create(true)
         .append(true)
         .open("/data/logs/apps/roxy.log")
