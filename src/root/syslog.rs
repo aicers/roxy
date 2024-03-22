@@ -8,6 +8,7 @@ use std::{
 
 const RSYSLOG_CONF: &str = "/etc/rsyslog.d/50-default.conf";
 const DEFAULT_FACILITY: &str = "user.*";
+const SYSLOG_SERVICE_UNIT: &str = "rsyslog";
 
 // Sets or init rsyslog remote servers. Currently the facility is fixed to `user.*`.
 //
@@ -64,7 +65,7 @@ pub(crate) fn set(remote_addrs: &Option<Vec<String>>) -> Result<bool> {
 
     file.write_all(new_contents.as_bytes())?;
 
-    systemctl::restart("rsyslog")
+    systemctl::restart(SYSLOG_SERVICE_UNIT)
         .map(|status| status.success())
         .map_err(Into::into)
 }
@@ -123,4 +124,11 @@ pub(crate) fn get() -> Result<Option<Vec<(String, String, String)>>> {
     } else {
         Ok(Some(ret))
     }
+}
+
+// (re)start rsyslog service
+pub(crate) fn start() -> Result<bool> {
+    systemctl::restart(SYSLOG_SERVICE_UNIT)
+        .map(|status| status.success())
+        .map_err(Into::into)
 }

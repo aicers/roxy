@@ -127,7 +127,7 @@ impl Task {
         }
     }
 
-    // Gets or sets remote syslog servers
+    // Gets or sets or restarts remote syslog servers
     //
     // # Return
     //
@@ -158,6 +158,13 @@ impl Task {
                     .map_err(|_| ERR_INVALID_COMMAND)?;
 
                 if root::syslog::set(&Some(remote_addrs)).is_ok() {
+                    response(self, OKAY)
+                } else {
+                    Err(ERR_FAIL)
+                }
+            }
+            SubCommand::Enable => {
+                if root::syslog::start().is_ok() {
                     response(self, OKAY)
                 } else {
                     Err(ERR_FAIL)
@@ -255,7 +262,7 @@ impl Task {
         }
     }
 
-    // Gets or sets sshd port number
+    // Gets or sets or restarts sshd
     //
     // # Return
     //
@@ -277,6 +284,13 @@ impl Task {
             SubCommand::Set => {
                 let port = self.parse::<String>().map_err(|_| ERR_INVALID_COMMAND)?;
                 if root::sshd::set(&port).is_ok() {
+                    response(self, OKAY)
+                } else {
+                    Err(ERR_FAIL)
+                }
+            }
+            SubCommand::Enable => {
+                if root::sshd::start().is_ok() {
                     response(self, OKAY)
                 } else {
                     Err(ERR_FAIL)

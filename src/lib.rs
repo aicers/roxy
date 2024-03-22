@@ -162,6 +162,27 @@ pub fn init_syslog_servers() -> Result<String> {
     }
 }
 
+/// (Re)start syslog services.
+///
+/// # Errors
+///
+/// The following errors are possible:
+///
+/// * If serialization of command arguments does not succeed, then an error
+///   is returned.
+/// * If spawning the roxy executable fails, then an error is returned.
+/// * If delivering a command to roxy fails, then an error is returned.
+/// * If a response message from roxy is invalid regarding JSON syntax or
+///   is not successfully base64-decoded, then an error is returned.
+/// * If it fails to restart rsyslogd service, then an error is returned.
+pub fn start_syslog_servers() -> Result<bool> {
+    if let Ok(req) = NodeRequest::new::<Option<String>>(Node::Syslog(SubCommand::Enable), None) {
+        run_roxy::<bool>(req)
+    } else {
+        Err(anyhow!(FAIL_REQUEST))
+    }
+}
+
 /// Returns the list of interface names.
 ///
 /// # Errors
@@ -333,6 +354,90 @@ pub fn power_off() -> Result<String> {
     }
 }
 
+/// Return configured sshd port number.
+///
+/// # Errors
+///
+/// * Return error if it fails to build request message
+/// * Return error if `run_roxy` function returns error
+pub fn get_sshd() -> Result<u16> {
+    if let Ok(req) = NodeRequest::new::<Option<String>>(Node::Sshd(SubCommand::Get), None) {
+        run_roxy::<u16>(req)
+    } else {
+        Err(anyhow!(FAIL_REQUEST))
+    }
+}
+
+/// Restart sshd service.
+///
+/// # Errors
+///
+/// * Return error if it fails to build request message
+/// * Return error if `run_roxy` function returns error
+pub fn start_sshd() -> Result<bool> {
+    if let Ok(req) = NodeRequest::new::<Option<String>>(Node::Sshd(SubCommand::Enable), None) {
+        run_roxy::<bool>(req)
+    } else {
+        Err(anyhow!(FAIL_REQUEST))
+    }
+}
+
+/// Return configured NTP server FQDNs
+///
+/// # Errors
+///
+/// * Return error if it fails to build request message
+/// * Return error if `run_roxy` function returns error
+pub fn get_ntp() -> Result<Option<Vec<String>>> {
+    if let Ok(req) = NodeRequest::new::<Option<String>>(Node::Ntp(SubCommand::Get), None) {
+        run_roxy::<Option<Vec<String>>>(req)
+    } else {
+        Err(anyhow!(FAIL_REQUEST))
+    }
+}
+
+/// Set ntp servers
+///
+/// # Errors
+///
+/// * Return error if it fails to build request message
+/// * Return error if `run_roxy` function returns error
+pub fn set_ntp(servers: Vec<String>) -> Result<bool> {
+    if let Ok(req) = NodeRequest::new::<Vec<String>>(Node::Ntp(SubCommand::Get), servers) {
+        run_roxy::<bool>(req)
+    } else {
+        Err(anyhow!(FAIL_REQUEST))
+    }
+}
+
+/// (Re)Start ntp service
+///
+/// # Errors
+///
+/// * Return error if it fails to build request message
+/// * Return error if `run_roxy` function returns error
+pub fn start_ntp() -> Result<bool> {
+    if let Ok(req) = NodeRequest::new::<Option<String>>(Node::Ntp(SubCommand::Enable), None) {
+        run_roxy::<bool>(req)
+    } else {
+        Err(anyhow!(FAIL_REQUEST))
+    }
+}
+
+/// Stop ntp service
+///
+/// # Errors
+///
+/// * Return error if it fails to build request message
+/// * Return error if `run_roxy` function returns error
+pub fn stop_ntp() -> Result<bool> {
+    if let Ok(req) = NodeRequest::new::<Option<String>>(Node::Ntp(SubCommand::Disable), None) {
+        run_roxy::<bool>(req)
+    } else {
+        Err(anyhow!(FAIL_REQUEST))
+    }
+}
+
 /// Response message from Roxy to caller
 #[derive(Deserialize, Debug)]
 pub enum TaskResult {
@@ -358,10 +463,7 @@ where
     T: serde::de::DeserializeOwned,
 {
     let mut child = Command::new("roxy")
-        .env(
-            "PATH",
-            "/usr/local/aice/bin:/usr/sbin:/usr/bin:/sbin:/bin:.",
-        )
+        .env("PATH", "/usr/local/aice/bin")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()?;

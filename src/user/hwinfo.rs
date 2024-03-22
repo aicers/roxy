@@ -32,7 +32,9 @@ impl fmt::Display for UptimeError {
 /// # }
 /// ```
 pub fn uptime() -> Result<Duration, UptimeError> {
-    uptime_lib::get().map_err(|e| UptimeError { message: e })
+    uptime_lib::get().map_err(|e| UptimeError {
+        message: e.to_string(),
+    })
 }
 
 /// Returns OS and Product versions by reading /etc/version.

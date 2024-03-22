@@ -7,6 +7,7 @@ use std::{
 };
 
 const NTP_CONF: &str = "/etc/ntp.conf";
+const NTP_SERVICE_UNIT: &str = "ntp";
 
 // Set NTP server addresses.
 //
@@ -42,7 +43,7 @@ pub(crate) fn set(servers: &[String]) -> Result<bool> {
 
     file.write_all(new_contents.as_bytes())?;
 
-    systemctl::restart("ntp")
+    systemctl::restart(NTP_SERVICE_UNIT)
         .map(|status| status.success())
         .map_err(Into::into)
 }
@@ -77,7 +78,7 @@ pub(crate) fn get() -> Result<Option<Vec<String>>> {
 // True if ntp service is active
 #[must_use]
 pub(crate) fn is_active() -> bool {
-    systemctl::is_active("ntp").map_or(false, |ret| ret)
+    systemctl::is_active(NTP_SERVICE_UNIT).map_or(false, |ret| ret)
 }
 
 // Start ntp client service
@@ -86,7 +87,7 @@ pub(crate) fn is_active() -> bool {
 //
 // * systemctl return error when starting ntp service
 pub(crate) fn enable() -> Result<bool> {
-    systemctl::restart("ntp")
+    systemctl::restart(NTP_SERVICE_UNIT)
         .map(|status| status.success())
         .map_err(Into::into)
 }
@@ -97,7 +98,7 @@ pub(crate) fn enable() -> Result<bool> {
 //
 // * systemctl return error when stopping ntp service
 pub(crate) fn disable() -> Result<bool> {
-    systemctl::stop("ntp")
+    systemctl::stop(NTP_SERVICE_UNIT)
         .map(|status| status.success())
         .map_err(Into::into)
 }
