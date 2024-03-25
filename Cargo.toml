@@ -14,7 +14,7 @@ ipnet = "2.8"
 log = "0.4"
 nix = { version = "0.28", features = ["reboot"] }
 pnet = { version = "0.34", features = ["pnet_datalink", "std"] }
-regex = "1.9"
+regex = "1.10"
 serde = { version = "1", features = ["derive"] }
 serde_derive = "1"
 serde_json = "1"
