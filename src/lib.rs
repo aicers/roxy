@@ -1,12 +1,13 @@
 pub mod common;
 mod user;
 
+use std::process::{Command, Stdio};
+
 use anyhow::{anyhow, Result};
 pub use common::waitfor_up;
 use common::{NicOutput, Node, NodeRequest, SubCommand};
 use data_encoding::BASE64;
 use serde::Deserialize;
-use std::process::{Command, Stdio};
 pub use user::hwinfo::{uptime, version};
 pub use user::process::{process_list, Process};
 pub use user::usg::{resource_usage, ResourceUsage};

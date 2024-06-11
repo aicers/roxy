@@ -14,6 +14,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 ### Changed
 
 - Limit the PATH of `roxy` program to `/usr/local/aice/bin`
+- Apply rustfmt's option `group_imports=StdExternalCrate`.
+  - Modify the code with the command `cargo fmt -- --config group_imports=StdExternalCrate`.
+    This command must be applied automatically or manually before all future pull
+    requests are submitted.
+  - Add `--config group_imports=StdExternalCrate` to the CI process like:
+    - `cargo fmt -- --check --config group_imports=StdExternalCrate`
 
 ## [0.2.1] - 2023-09-06
 

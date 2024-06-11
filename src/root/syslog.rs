@@ -1,10 +1,11 @@
-use anyhow::{anyhow, Result};
 use std::{
     fmt::Write as FmtWrite,
     fs::{self, OpenOptions},
     io::Write as IoWrite,
     net::SocketAddr,
 };
+
+use anyhow::{anyhow, Result};
 
 const RSYSLOG_CONF: &str = "/etc/rsyslog.d/50-default.conf";
 const DEFAULT_FACILITY: &str = "user.*";

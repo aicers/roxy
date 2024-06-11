@@ -1,11 +1,13 @@
-use super::{NicOutput, SubCommand};
-use crate::root;
+use std::fs;
+use std::io::Write;
+
 use anyhow::{anyhow, Result};
 use chrono::Local;
 use data_encoding::BASE64;
 use serde::{Deserialize, Serialize};
-use std::fs;
-use std::io::Write;
+
+use super::{NicOutput, SubCommand};
+use crate::root;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) enum Task {

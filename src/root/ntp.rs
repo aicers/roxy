@@ -1,10 +1,11 @@
-use anyhow::Result;
-use regex::Regex;
 use std::{
     fmt::Write as FmtWrite,
     fs::{self, OpenOptions},
     io::Write as IoWrite,
 };
+
+use anyhow::Result;
+use regex::Regex;
 
 const NTP_CONF: &str = "/etc/ntp.conf";
 const NTP_SERVICE_UNIT: &str = "ntp";

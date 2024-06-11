@@ -1,5 +1,6 @@
-use serde::{Deserialize, Serialize};
 use std::path::Path;
+
+use serde::{Deserialize, Serialize};
 
 /// CPU, memory, and disk usage.
 #[derive(Debug, Deserialize, Serialize)]

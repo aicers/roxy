@@ -1,9 +1,10 @@
-use anyhow::Result;
 use std::{
     net::{IpAddr, SocketAddr, TcpStream},
     thread,
     time::{Duration, SystemTime},
 };
+
+use anyhow::Result;
 
 /// Check the port is open (service is available).
 /// * Be careful! The opened ports does not mean that service is available. Sometimes it takes more time.
