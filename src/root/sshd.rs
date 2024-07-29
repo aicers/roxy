@@ -1,9 +1,10 @@
-use anyhow::Result;
 use std::{
     fmt::Write as FmtWrite,
     fs::{self, OpenOptions},
     io::Write as IoWrite,
 };
+
+use anyhow::Result;
 
 const SSHD_CONFIG: &str = "/etc/ssh/sshd_config";
 const SSHD_DEFAULT_PORT: u16 = 22;

@@ -1,11 +1,3 @@
-use super::{Nic, NicOutput};
-use anyhow::{anyhow, Result};
-use chrono::{DateTime, Local};
-use ipnet::IpNet;
-use pnet::datalink::interfaces;
-use roxy::common::DEFAULT_PATH_ENV;
-use serde_derive::{Deserialize, Serialize};
-use serde_with::serde_as;
 use std::{
     collections::HashMap,
     fmt,
@@ -14,6 +6,16 @@ use std::{
     net::IpAddr,
     process::Command,
 };
+
+use anyhow::{anyhow, Result};
+use chrono::{DateTime, Local};
+use ipnet::IpNet;
+use pnet::datalink::interfaces;
+use roxy::common::DEFAULT_PATH_ENV;
+use serde_derive::{Deserialize, Serialize};
+use serde_with::serde_as;
+
+use super::{Nic, NicOutput};
 
 const NETPLAN_PATH: &str = "/etc/netplan";
 const DEFAULT_NETPLAN_YAML: &str = "01-netcfg.yaml";

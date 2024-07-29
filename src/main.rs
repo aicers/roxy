@@ -1,12 +1,13 @@
 mod root;
 
-use data_encoding::BASE64;
-use root::task::{ExecResult, Task, ERR_INVALID_COMMAND};
-use roxy::common::{self, Node, NodeRequest};
 use std::{
     io::{stdin, stdout},
     process,
 };
+
+use data_encoding::BASE64;
+use root::task::{ExecResult, Task, ERR_INVALID_COMMAND};
+use roxy::common::{self, Node, NodeRequest};
 
 fn main() {
     let nr: NodeRequest = match serde_json::from_reader(stdin()) {

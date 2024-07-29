@@ -1,9 +1,11 @@
-use super::SubCommand;
-use anyhow::{anyhow, Result};
 use std::{
     fs::{self, OpenOptions},
     io::Write as IoWrite,
 };
+
+use anyhow::{anyhow, Result};
+
+use super::SubCommand;
 
 // TODO: should change this path to /usr/local/aice/conf/version?
 const DEFAULT_VERSION_PATH: &str = "/etc/version";
