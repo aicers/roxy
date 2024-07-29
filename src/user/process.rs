@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use sysinfo::{PidExt, ProcessExt, System, SystemExt};
+use sysinfo::{System, Users, MINIMUM_CPU_UPDATE_INTERVAL};
 
 const KTHREAD_PID: u32 = 2;
 const DEFAULT_USER_NAME: &str = "N/A";
@@ -26,9 +26,10 @@ pub struct Process {
 pub async fn process_list() -> Vec<Process> {
     let mut system = System::new_all();
     let mut processes = Vec::new();
+    let users = Users::new_with_refreshed_list();
 
     // Calculating CPU usage requires a time interval.
-    tokio::time::sleep(System::MINIMUM_CPU_UPDATE_INTERVAL).await;
+    tokio::time::sleep(MINIMUM_CPU_UPDATE_INTERVAL).await;
     system.refresh_all();
 
     let total_memory = system.total_memory() as f64;
@@ -43,8 +44,8 @@ pub async fn process_list() -> Vec<Process> {
         }
         let user = process
             .user_id()
-            .and_then(|uid| system.get_user_by_id(uid))
-            .map_or(DEFAULT_USER_NAME, sysinfo::UserExt::name)
+            .and_then(|uid| users.get_user_by_id(uid))
+            .map_or(DEFAULT_USER_NAME, |u| u.name())
             .to_string();
         let cpu_usage = process.cpu_usage() / num_cpu;
         let mem_usage = process.memory() as f64 / total_memory * 100.0;
