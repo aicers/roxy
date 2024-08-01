@@ -9,10 +9,10 @@ pub struct ResourceUsage {
     /// The average CPU usage in percent.
     pub cpu_usage: f32,
 
-    /// The RAM size in KB.
+    /// The RAM size in bytes.
     pub total_memory: u64,
 
-    /// The amount of used RAM in KB.
+    /// The amount of used RAM in bytes.
     pub used_memory: u64,
 
     /// The total disk space in bytes.
