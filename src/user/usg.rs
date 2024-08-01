@@ -50,10 +50,10 @@ pub async fn resource_usage() -> ResourceUsage {
 
     // Calculating CPU usage requires a time interval.
     tokio::time::sleep(std::time::Duration::from_millis(200)).await;
-    system.refresh_cpu();
+    system.refresh_cpu_usage();
 
     ResourceUsage {
-        cpu_usage: system.global_cpu_info().cpu_usage(),
+        cpu_usage: system.global_cpu_usage(),
         total_memory: system.total_memory(),
         used_memory: system.used_memory(),
         total_disk_space,
