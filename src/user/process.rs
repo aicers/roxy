@@ -50,7 +50,7 @@ pub async fn process_list() -> Vec<Process> {
         let cpu_usage = process.cpu_usage() / num_cpu;
         let mem_usage = process.memory() as f64 / total_memory * 100.0;
         let start_time = process.start_time() as i64 * NANO_SEC;
-        let command = process.name().to_string();
+        let command = process.name().to_string_lossy().to_string();
 
         processes.push(Process {
             user,
