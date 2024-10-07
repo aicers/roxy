@@ -43,8 +43,10 @@ pub(crate) fn set(port: &str) -> Result<bool> {
         .open(SSHD_CONFIG)?;
 
     file.write_all(new_contents.as_bytes())?;
+    let systemctl = systemctl::SystemCtl::default();
 
-    systemctl::restart(SSHD_SERVICE_UNIT)
+    systemctl
+        .restart(SSHD_SERVICE_UNIT)
         .map(|status| status.success())
         .map_err(Into::into)
 }
@@ -73,7 +75,13 @@ pub(crate) fn get() -> Result<u16> {
 
 // (re)start sshd service
 pub(crate) fn start() -> Result<bool> {
-    systemctl::restart(SSHD_SERVICE_UNIT)
-        .map(|status| status.success())
-        .map_err(Into::into)
+    let systemctl = systemctl::SystemCtl::default();
+    if let Ok(true) = systemctl.exists(SSHD_SERVICE_UNIT) {
+        systemctl
+            .restart(SSHD_SERVICE_UNIT)
+            .map(|status| status.success())
+            .map_err(Into::into)
+    } else {
+        Ok(false)
+    }
 }
