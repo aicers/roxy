@@ -66,7 +66,9 @@ pub(crate) fn set(remote_addrs: &Option<Vec<String>>) -> Result<bool> {
 
     file.write_all(new_contents.as_bytes())?;
 
-    systemctl::restart(SYSLOG_SERVICE_UNIT)
+    let systemctl = systemctl::SystemCtl::default();
+    systemctl
+        .restart(SYSLOG_SERVICE_UNIT)
         .map(|status| status.success())
         .map_err(Into::into)
 }
@@ -129,7 +131,13 @@ pub(crate) fn get() -> Result<Option<Vec<(String, String, String)>>> {
 
 // (re)start rsyslog service
 pub(crate) fn start() -> Result<bool> {
-    systemctl::restart(SYSLOG_SERVICE_UNIT)
-        .map(|status| status.success())
-        .map_err(Into::into)
+    let systemctl = systemctl::SystemCtl::default();
+    if let Ok(true) = systemctl.exists(SYSLOG_SERVICE_UNIT) {
+        systemctl
+            .restart(SYSLOG_SERVICE_UNIT)
+            .map(|status| status.success())
+            .map_err(Into::into)
+    } else {
+        Ok(false)
+    }
 }

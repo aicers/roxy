@@ -20,6 +20,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
     requests are submitted.
   - Add `--config group_imports=StdExternalCrate` to the CI process like:
     - `cargo fmt -- --check --config group_imports=StdExternalCrate`
+- Bump systemctl crate to 0.4.0 and modify the related code.
 
 ## [0.2.1] - 2023-09-06
 

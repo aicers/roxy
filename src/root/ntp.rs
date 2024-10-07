@@ -44,7 +44,9 @@ pub(crate) fn set(servers: &[String]) -> Result<bool> {
 
     file.write_all(new_contents.as_bytes())?;
 
-    systemctl::restart(NTP_SERVICE_UNIT)
+    let systemctl = systemctl::SystemCtl::default();
+    systemctl
+        .restart(NTP_SERVICE_UNIT)
         .map(|status| status.success())
         .map_err(Into::into)
 }
@@ -79,7 +81,14 @@ pub(crate) fn get() -> Result<Option<Vec<String>>> {
 // True if ntp service is active
 #[must_use]
 pub(crate) fn is_active() -> bool {
-    systemctl::is_active(NTP_SERVICE_UNIT).map_or(false, |ret| ret)
+    let systemctl = systemctl::SystemCtl::default();
+    if let Ok(true) = systemctl.exists(NTP_SERVICE_UNIT) {
+        systemctl
+            .is_active(NTP_SERVICE_UNIT)
+            .map_or(false, |ret| ret)
+    } else {
+        false
+    }
 }
 
 // Start ntp client service
@@ -88,9 +97,15 @@ pub(crate) fn is_active() -> bool {
 //
 // * systemctl return error when starting ntp service
 pub(crate) fn enable() -> Result<bool> {
-    systemctl::restart(NTP_SERVICE_UNIT)
-        .map(|status| status.success())
-        .map_err(Into::into)
+    let systemctl = systemctl::SystemCtl::default();
+    if let Ok(true) = systemctl.exists(NTP_SERVICE_UNIT) {
+        systemctl
+            .restart(NTP_SERVICE_UNIT)
+            .map(|status| status.success())
+            .map_err(Into::into)
+    } else {
+        Ok(false)
+    }
 }
 
 // Stop ntp client service
@@ -99,7 +114,13 @@ pub(crate) fn enable() -> Result<bool> {
 //
 // * systemctl return error when stopping ntp service
 pub(crate) fn disable() -> Result<bool> {
-    systemctl::stop(NTP_SERVICE_UNIT)
-        .map(|status| status.success())
-        .map_err(Into::into)
+    let systemctl = systemctl::SystemCtl::default();
+    if let Ok(true) = systemctl.exists(NTP_SERVICE_UNIT) {
+        systemctl
+            .stop(NTP_SERVICE_UNIT)
+            .map(|status| status.success())
+            .map_err(Into::into)
+    } else {
+        Ok(false)
+    }
 }
