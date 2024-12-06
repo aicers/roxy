@@ -1,7 +1,6 @@
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
-use sysinfo::MemoryRefreshKind;
 
 /// CPU, memory, and disk usage.
 #[derive(Debug, Deserialize, Serialize)]
@@ -24,13 +23,9 @@ pub struct ResourceUsage {
 
 /// Returns CPU, memory, and disk usage.
 pub async fn resource_usage() -> ResourceUsage {
-    use sysinfo::{CpuRefreshKind, Disks, RefreshKind, System};
+    use sysinfo::{Disks, RefreshKind, System};
 
-    let refresh = RefreshKind::new()
-        .with_cpu(CpuRefreshKind::new().with_cpu_usage())
-        .with_memory(MemoryRefreshKind::new().with_ram());
-    let mut system = System::new_with_specifics(refresh);
-
+    let mut system = System::new_with_specifics(RefreshKind::everything().without_processes());
     let (total_disk_space, used_disk_space) = {
         let disks = Disks::new_with_refreshed_list();
         if let Some(d) = disks
