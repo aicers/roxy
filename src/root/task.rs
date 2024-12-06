@@ -148,7 +148,7 @@ impl Task {
                 response(self, ret)
             }
             SubCommand::Init => {
-                if root::syslog::set(&None).is_ok() {
+                if root::syslog::set(None).is_ok() {
                     response(self, OKAY)
                 } else {
                     Err(ERR_FAIL)
@@ -159,7 +159,7 @@ impl Task {
                     .parse::<Vec<String>>()
                     .map_err(|_| ERR_INVALID_COMMAND)?;
 
-                if root::syslog::set(&Some(remote_addrs)).is_ok() {
+                if root::syslog::set(Some(&remote_addrs)).is_ok() {
                     response(self, OKAY)
                 } else {
                     Err(ERR_FAIL)
@@ -231,7 +231,7 @@ impl Task {
                 let arg = self
                     .parse::<Option<String>>()
                     .map_err(|_| ERR_INVALID_COMMAND)?;
-                match root::ifconfig::get(&arg) {
+                match root::ifconfig::get(arg.as_ref()) {
                     Ok(ret) => response(self, ret),
                     Err(_) => Err(ERR_FAIL),
                 }
@@ -246,7 +246,7 @@ impl Task {
             }
             SubCommand::List => {
                 if let Ok(arg) = self.parse::<Option<String>>() {
-                    response(self, root::ifconfig::get_interface_names(&arg))
+                    response(self, root::ifconfig::get_interface_names(arg.as_ref()))
                 } else {
                     Err(ERR_INVALID_COMMAND)
                 }

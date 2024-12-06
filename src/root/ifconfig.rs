@@ -354,7 +354,7 @@ pub(crate) fn set(ifname: &str, nic_output: &NicOutput) -> Result<()> {
 // let eno1_interface = ifconfig::get(&Some("eno1".to_string()))?;
 //
 // Error: fail to load /etc/netplan yaml files
-pub(crate) fn get(ifname: &Option<String>) -> Result<Option<Vec<(String, NicOutput)>>> {
+pub(crate) fn get(ifname: Option<&String>) -> Result<Option<Vec<(String, NicOutput)>>> {
     let netplan = load_netplan_yaml(NETPLAN_PATH)?;
     if let Some(name) = ifname {
         if let Some((_, nic)) = netplan.network.ethernets.iter().find(|(x, _)| *x == *name) {
@@ -404,7 +404,7 @@ pub(crate) fn delete(ifname: &str, nic_output: &NicOutput) -> Result<()> {
 // To get interface names starting with "en":
 // let names = ifconfig::get_interface_names(&Some("en".to_string()));
 #[must_use]
-pub(crate) fn get_interface_names(arg: &Option<String>) -> Vec<String> {
+pub(crate) fn get_interface_names(arg: Option<&String>) -> Vec<String> {
     let mut nics = interfaces();
     if let Some(prefix) = arg {
         nics.retain(|f| f.name.starts_with(prefix));
