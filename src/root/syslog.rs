@@ -31,7 +31,7 @@ const SYSLOG_SERVICE_UNIT: &str = "rsyslog";
 // * fail to open /etc/rsyslog.d/50-default.conf
 // * fail to write modified contents to /etc/rsyslog.d/50-default.conf
 // * fail to restart rsyslogd service
-pub(crate) fn set(remote_addrs: &Option<Vec<String>>) -> Result<bool> {
+pub(crate) fn set(remote_addrs: Option<&Vec<String>>) -> Result<bool> {
     if let Some(addrs) = remote_addrs {
         for addr in addrs {
             let _addr = addr
