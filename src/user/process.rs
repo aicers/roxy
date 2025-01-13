@@ -38,7 +38,7 @@ pub async fn process_list() -> Vec<Process> {
     for process in system.processes().values() {
         if process
             .parent()
-            .map_or(false, |ppid| ppid.as_u32() == KTHREAD_PID)
+            .is_some_and(|ppid| ppid.as_u32() == KTHREAD_PID)
         {
             continue;
         }
