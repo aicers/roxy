@@ -175,10 +175,7 @@ impl NetplanYaml {
     // * fail to remove /etc/netplan files except the first yaml file
     // * fail to run netplan apply command
     fn apply(&self, dir: &str) -> Result<()> {
-        let files = match list_files(dir, None, false) {
-            Ok(r) => r,
-            Err(e) => return Err(e),
-        };
+        let files = list_files(dir, None, false)?;
 
         let mut from = format!("/tmp/{DEFAULT_NETPLAN_YAML}");
         let mut to = format!("{dir}/{DEFAULT_NETPLAN_YAML}");

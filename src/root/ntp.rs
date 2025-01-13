@@ -83,9 +83,7 @@ pub(crate) fn get() -> Result<Option<Vec<String>>> {
 pub(crate) fn is_active() -> bool {
     let systemctl = systemctl::SystemCtl::default();
     if let Ok(true) = systemctl.exists(NTP_SERVICE_UNIT) {
-        systemctl
-            .is_active(NTP_SERVICE_UNIT)
-            .map_or(false, |ret| ret)
+        systemctl.is_active(NTP_SERVICE_UNIT).is_ok_and(|ret| ret)
     } else {
         false
     }
