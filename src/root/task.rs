@@ -364,13 +364,13 @@ where
 {
     if let Ok(message) = bincode::serialize(&input) {
         if u32::try_from(message.len()).is_err() {
-            log::error!("reponse is too long. Task: {:?}", taskcode);
+            log::error!("reponse is too long. Task: {taskcode:?}");
             Err(ERR_MESSAGE_TOO_LONG)
         } else {
             Ok(BASE64.encode(&message))
         }
     } else {
-        log::error!("failed to serialize response message. Task: {:?}", taskcode);
+        log::error!("failed to serialize response message. Task: {taskcode:?}");
         Err(ERR_PARSE_FAIL)
     }
 }

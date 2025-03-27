@@ -13,11 +13,11 @@ fn main() {
     let nr: NodeRequest = match serde_json::from_reader(stdin()) {
         Ok(nr) => nr,
         Err(err) => {
-            log::error!("Command Error: {}", err);
+            log::error!("Command Error: {err}");
             if let Err(err) =
                 serde_json::to_writer_pretty(stdout(), &ExecResult::Err(ERR_INVALID_COMMAND))
             {
-                log::error!("Serialize Error: {}", err);
+                log::error!("Serialize Error: {err}");
             }
             process::exit(1);
         }
@@ -39,7 +39,7 @@ fn main() {
 
     let ret = task.execute();
     if let Err(err) = serde_json::to_writer_pretty(stdout(), &ret) {
-        log::error!("Stdout Error: {}", err);
+        log::error!("Stdout Error: {err}");
         process::exit(1);
     }
 }
