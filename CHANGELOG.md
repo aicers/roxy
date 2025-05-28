@@ -2,8 +2,7 @@
 
 This file documents recent notable changes to this project. The format of this
 file is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
-this project adheres to
-[Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.3.0] - 2024-10-07
 
@@ -15,10 +14,9 @@ this project adheres to
 
 - Limit the PATH of `roxy` program to `/usr/local/aice/bin`
 - Apply rustfmt's option `group_imports=StdExternalCrate`.
-  - Modify the code with the command
-    `cargo fmt -- --config group_imports=StdExternalCrate`. This command must be
-    applied automatically or manually before all future pull requests are
-    submitted.
+  - Modify the code with the command `cargo fmt -- --config group_imports=StdExternalCrate`.
+    This command must be applied automatically or manually before all future pull
+    requests are submitted.
   - Add `--config group_imports=StdExternalCrate` to the CI process like:
     - `cargo fmt -- --check --config group_imports=StdExternalCrate`
 - Bump systemctl crate to 0.4.0 and modify the related code.
@@ -42,8 +40,7 @@ this project adheres to
 ### Security
 
 - Turned off the default features of chrono that might casue SEGFAULT. See
-  [RUSTSEC-2020-0071](https://rustsec.org/advisories/RUSTSEC-2020-0071) for
-  details.
+  [RUSTSEC-2020-0071](https://rustsec.org/advisories/RUSTSEC-2020-0071) for details.
 
 ## [0.1.0] - 2022-11-15
 
