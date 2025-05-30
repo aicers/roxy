@@ -6,7 +6,7 @@ pub use interface::{Nic, NicOutput};
 use serde::{Deserialize, Serialize};
 pub use services::waitfor_up;
 
-pub const DEFAULT_PATH_ENV: &str = "/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/aice/bin";
+pub const DEFAULT_PATH_ENV: &str = "/usr/sbin:/usr/bin:/sbin:/bin:/opt/clumit/bin";
 
 /// Types of command to node.
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
