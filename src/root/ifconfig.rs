@@ -11,7 +11,6 @@ use anyhow::{anyhow, Result};
 use chrono::{DateTime, Local};
 use ipnet::IpNet;
 use pnet::datalink::interfaces;
-use roxy::common::DEFAULT_PATH_ENV;
 use serde_derive::{Deserialize, Serialize};
 use serde_with::serde_as;
 
@@ -460,7 +459,7 @@ fn list_files(
 
 fn run_command(cmd: &str, args: &[&str]) -> Result<bool> {
     let status = Command::new(cmd)
-        .env("PATH", DEFAULT_PATH_ENV)
+        .env("PATH", "/usr/sbin:/usr/bin:/sbin:/bin")
         .args(args)
         .status()?;
     Ok(status.success())

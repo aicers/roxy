@@ -41,7 +41,7 @@ Roxy is a root proxy that executes a system command requiring the root privilege
   - /bin
   - /sbin
 
-- Roxy is supposed to be located in "/usr/local/aice/bin"
+- Roxy is supposed to be located in "/opt/clumit/bin"
 
 - Tips for services
 
