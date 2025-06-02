@@ -30,11 +30,11 @@ pub async fn resource_usage() -> ResourceUsage {
         let disks = Disks::new_with_refreshed_list();
         if let Some(d) = disks
             .iter()
-            .find(|&disk| disk.mount_point() == Path::new("/data"))
+            .find(|&disk| disk.mount_point() == Path::new("/opt/clumit/var"))
         {
             (d.total_space(), d.total_space() - d.available_space())
         } else {
-            // Find the disk with the largest space if `/data` is not found
+            // Find the disk with the largest space if `/opt/clumit/var` is not found
             if let Some(d) = disks.iter().max_by_key(|&disk| disk.total_space()) {
                 (d.total_space(), d.total_space() - d.available_space())
             } else {
