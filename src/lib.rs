@@ -464,7 +464,7 @@ where
     T: serde::de::DeserializeOwned,
 {
     let mut child = Command::new("roxy")
-        .env("PATH", "/usr/local/aice/bin")
+        .env("PATH", "/opt/clumit/bin")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()?;
