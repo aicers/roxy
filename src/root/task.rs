@@ -380,7 +380,7 @@ pub fn log_debug(msg: &str) {
     if let Ok(mut writer) = fs::OpenOptions::new()
         .create(true)
         .append(true)
-        .open("/data/logs/apps/roxy.log")
+        .open("/opt/clumit/log/roxy.log")
     {
         let _r = writeln!(writer, "{:?}: {msg}", Local::now());
     }
