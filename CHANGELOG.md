@@ -11,6 +11,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Update roxy PATH from `/usr/local/aice/bin` to `/opt/clumit/bin`.
 - Update disk mount PATH from `/data` to `/opt/clumit/var`.
 - Update `log_debug` PATH from `/data/logs/apps` to `/opt/clumit/log`.
+- Bump bincode crate to 2.0 and modified the related code.
 
 ## [0.3.0] - 2024-10-07
 
