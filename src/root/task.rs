@@ -3,7 +3,6 @@ use std::io::Write;
 use std::process::Command;
 
 use anyhow::{anyhow, Result};
-use chrono::Local;
 use data_encoding::BASE64;
 use serde::{Deserialize, Serialize};
 
@@ -45,7 +44,7 @@ impl Task {
                 );
                 match decoded {
                     Ok((r, _)) => {
-                        log_debug(&format!("arg={r:?}"));
+                        tracing::debug!("arg={r:?}");
                         Ok(r)
                     }
                     Err(e) => Err(anyhow!("fail to parse argument. {}", e)),
@@ -69,7 +68,7 @@ impl Task {
     // * unsupported command
     // * got error from the executed command
     pub fn execute(&self) -> ExecResult {
-        log_debug(&format!("task {self:?}"));
+        tracing::debug!("task {self:?}");
         match self {
             #[cfg(target_os = "linux")]
             Task::PowerOff(_) => self.poweroff(),
@@ -116,7 +115,7 @@ impl Task {
         match result {
             Ok(_) => response(self, OKAY),
             Err(e) => {
-                log_debug(&format!("Failed to execute graceful reboot: {e}"));
+                tracing::debug!("Failed to execute graceful reboot: {e}");
                 Err(ERR_FAIL)
             }
         }
@@ -136,7 +135,7 @@ impl Task {
         match result {
             Ok(_) => response(self, OKAY),
             Err(e) => {
-                log_debug(&format!("Failed to execute graceful poweroff: {e}"));
+                tracing::debug!("Failed to execute graceful poweroff: {e}");
                 Err(ERR_FAIL)
             }
         }
@@ -413,24 +412,13 @@ where
 {
     if let Ok(message) = bincode::serde::encode_to_vec(&input, bincode::config::legacy()) {
         if u32::try_from(message.len()).is_err() {
-            log::error!("reponse is too long. Task: {taskcode:?}");
+            tracing::error!("reponse is too long. Task: {taskcode:?}");
             Err(ERR_MESSAGE_TOO_LONG)
         } else {
             Ok(BASE64.encode(&message))
         }
     } else {
-        log::error!("failed to serialize response message. Task: {taskcode:?}");
+        tracing::error!("failed to serialize response message. Task: {taskcode:?}");
         Err(ERR_PARSE_FAIL)
-    }
-}
-
-// TODO: define the full path for roxy.log file
-pub fn log_debug(msg: &str) {
-    if let Ok(mut writer) = fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open("/opt/clumit/log/roxy.log")
-    {
-        let _r = writeln!(writer, "{:?}: {msg}", Local::now());
     }
 }
