@@ -8,7 +8,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
-- Migrate logging from `log` crate to `tracing` for improved async support and structured logging capabilities.
+- Migrate logging from `log` crate to `tracing` for improved async support and
+  structured logging capabilities.
 
 ## [0.4.0] - 2025-07-04
 
