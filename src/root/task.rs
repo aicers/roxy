@@ -1,5 +1,7 @@
 use std::fs;
 use std::io::Write;
+#[cfg(target_os = "linux")]
+use std::process::Command;
 
 use anyhow::{anyhow, Result};
 use chrono::Local;
@@ -16,6 +18,8 @@ pub(crate) enum Task {
     Ntp { cmd: SubCommand, arg: String },
     PowerOff(String),
     Reboot(String),
+    GracefulReboot(String),
+    GracefulPowerOff(String),
     Service { cmd: SubCommand, arg: String },
     Sshd { cmd: SubCommand, arg: String },
     Syslog { cmd: SubCommand, arg: String },
@@ -72,6 +76,10 @@ impl Task {
             Task::PowerOff(_) => self.poweroff(),
             #[cfg(target_os = "linux")]
             Task::Reboot(_) => self.reboot(),
+            #[cfg(target_os = "linux")]
+            Task::GracefulReboot(_) => self.graceful_reboot(),
+            #[cfg(target_os = "linux")]
+            Task::GracefulPowerOff(_) => self.graceful_poweroff(),
             Task::Hostname { cmd, arg: _ } => self.hostname(*cmd),
             Task::Interface { cmd, arg: _ } => self.interface(*cmd),
             Task::Ntp { cmd, arg: _ } => self.ntp(*cmd),
@@ -95,6 +103,28 @@ impl Task {
         nix::sys::reboot::reboot(nix::sys::reboot::RebootMode::RB_POWER_OFF)
             .map_err(|_| ERR_INVALID_COMMAND)?;
         response(self, OKAY)
+    }
+
+    #[cfg(target_os = "linux")]
+    fn graceful_reboot(&self) -> ExecResult {
+        match Command::new("reboot").spawn() {
+            Ok(_) => response(self, OKAY),
+            Err(e) => {
+                log_debug(&format!("Failed to execute graceful reboot: {}", e));
+                Err(ERR_FAIL)
+            }
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    fn graceful_poweroff(&self) -> ExecResult {
+        match Command::new("poweroff").spawn() {
+            Ok(_) => response(self, OKAY),
+            Err(e) => {
+                log_debug(&format!("Failed to execute graceful poweroff: {}", e));
+                Err(ERR_FAIL)
+            }
+        }
     }
 
     // Gets or sets version for OS and Product
