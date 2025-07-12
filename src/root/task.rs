@@ -110,7 +110,7 @@ impl Task {
         match Command::new("reboot").spawn() {
             Ok(_) => response(self, OKAY),
             Err(e) => {
-                log_debug(&format!("Failed to execute graceful reboot: {}", e));
+                log_debug(&format!("Failed to execute graceful reboot: {e}"));
                 Err(ERR_FAIL)
             }
         }
@@ -121,7 +121,7 @@ impl Task {
         match Command::new("poweroff").spawn() {
             Ok(_) => response(self, OKAY),
             Err(e) => {
-                log_debug(&format!("Failed to execute graceful poweroff: {}", e));
+                log_debug(&format!("Failed to execute graceful poweroff: {e}"));
                 Err(ERR_FAIL)
             }
         }
