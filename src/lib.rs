@@ -313,7 +313,11 @@ pub fn remove_interface(
     }
 }
 
-/// Reboots the system.
+/// Reboots the system forcefully and immediately.
+///
+/// This function uses a direct system call (`nix::sys::reboot::reboot`) which does not
+/// send termination signals to running processes. For a graceful shutdown that allows
+/// processes to terminate cleanly, use `graceful_reboot()`.
 ///
 /// # Errors
 ///
@@ -334,7 +338,11 @@ pub fn reboot() -> Result<String> {
     }
 }
 
-/// Turns the system off.
+/// Turns the system off forcefully and immediately.
+///
+/// This function uses a direct system call (`nix::sys::reboot::reboot`) which does not
+/// send termination signals to running processes. For a graceful shutdown that allows
+/// processes to terminate cleanly, use `graceful_power_off()`.
 ///
 /// # Errors
 ///
@@ -349,6 +357,54 @@ pub fn reboot() -> Result<String> {
 /// * If `nix::sys::reboot::reboot` fails, then an error is returned.
 pub fn power_off() -> Result<String> {
     if let Ok(req) = NodeRequest::new::<Option<String>>(Node::PowerOff, None) {
+        run_roxy::<String>(req)
+    } else {
+        Err(anyhow!(FAIL_REQUEST))
+    }
+}
+
+/// Reboots the system gracefully.
+///
+/// This function executes the system's `reboot` command, allowing services
+/// and processes to terminate cleanly.
+///
+/// # Errors
+///
+/// The following errors are possible:
+///
+/// * If serialization of command arguments does not succeed, then an error
+///   is returned.
+/// * If spawning the roxy executable fails, then an error is returned.
+/// * If delivering a command to roxy fails, then an error is returned.
+/// * If a response message from roxy is invalid regarding JSON syntax or
+///   is not successfully base64-decoded, then an error is returned.
+/// * If executing the `reboot` command fails, then an error is returned.
+pub fn graceful_reboot() -> Result<String> {
+    if let Ok(req) = NodeRequest::new::<Option<String>>(Node::GracefulReboot, None) {
+        run_roxy::<String>(req)
+    } else {
+        Err(anyhow!(FAIL_REQUEST))
+    }
+}
+
+/// Turns the system off gracefully.
+///
+/// This function executes the system's `poweroff` command, allowing services
+/// and processes to terminate cleanly.
+///
+/// # Errors
+///
+/// The following errors are possible:
+///
+/// * If serialization of command arguments does not succeed, then an error
+///   is returned.
+/// * If spawning the roxy executable fails, then an error is returned.
+/// * If delivering a command to roxy fails, then an error is returned.
+/// * If a response message from roxy is invalid regarding JSON syntax or
+///   is not successfully base64-decoded, then an error is returned.
+/// * If executing the `poweroff` command fails, then an error is returned.
+pub fn graceful_power_off() -> Result<String> {
+    if let Ok(req) = NodeRequest::new::<Option<String>>(Node::GracefulPowerOff, None) {
         run_roxy::<String>(req)
     } else {
         Err(anyhow!(FAIL_REQUEST))
