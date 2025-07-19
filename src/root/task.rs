@@ -1,6 +1,5 @@
 use std::fs;
 use std::io::Write;
-#[cfg(target_os = "linux")]
 use std::process::Command;
 
 use anyhow::{anyhow, Result};
@@ -76,9 +75,7 @@ impl Task {
             Task::PowerOff(_) => self.poweroff(),
             #[cfg(target_os = "linux")]
             Task::Reboot(_) => self.reboot(),
-            #[cfg(target_os = "linux")]
             Task::GracefulReboot(_) => self.graceful_reboot(),
-            #[cfg(target_os = "linux")]
             Task::GracefulPowerOff(_) => self.graceful_poweroff(),
             Task::Hostname { cmd, arg: _ } => self.hostname(*cmd),
             Task::Interface { cmd, arg: _ } => self.interface(*cmd),
@@ -105,9 +102,18 @@ impl Task {
         response(self, OKAY)
     }
 
-    #[cfg(target_os = "linux")]
     fn graceful_reboot(&self) -> ExecResult {
-        match Command::new("reboot").spawn() {
+        #[cfg(target_os = "linux")]
+        let cmd = "reboot";
+        #[cfg(target_os = "macos")]
+        let cmd = "sudo";
+
+        #[cfg(target_os = "linux")]
+        let result = Command::new(cmd).spawn();
+        #[cfg(target_os = "macos")]
+        let result = Command::new(cmd).args(["reboot"]).spawn();
+
+        match result {
             Ok(_) => response(self, OKAY),
             Err(e) => {
                 log_debug(&format!("Failed to execute graceful reboot: {e}"));
@@ -116,9 +122,18 @@ impl Task {
         }
     }
 
-    #[cfg(target_os = "linux")]
     fn graceful_poweroff(&self) -> ExecResult {
-        match Command::new("poweroff").spawn() {
+        #[cfg(target_os = "linux")]
+        let cmd = "poweroff";
+        #[cfg(target_os = "macos")]
+        let cmd = "sudo";
+
+        #[cfg(target_os = "linux")]
+        let result = Command::new(cmd).spawn();
+        #[cfg(target_os = "macos")]
+        let result = Command::new(cmd).args(["shutdown", "-h", "now"]).spawn();
+
+        match result {
             Ok(_) => response(self, OKAY),
             Err(e) => {
                 log_debug(&format!("Failed to execute graceful poweroff: {e}"));
