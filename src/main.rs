@@ -8,8 +8,28 @@ use std::{
 use data_encoding::BASE64;
 use root::task::{ExecResult, Task, ERR_INVALID_COMMAND};
 use roxy::common::{self, Node, NodeRequest};
+use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+
+fn init_tracing() {
+    let file_appender = tracing_appender::rolling::never("./", "roxy.log");
+
+    let stdout_layer = fmt::layer().with_writer(std::io::stdout).with_target(false);
+
+    let file_layer = fmt::layer()
+        .with_writer(file_appender)
+        .with_target(false)
+        .with_ansi(false);
+
+    tracing_subscriber::registry()
+        .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
+        .with(stdout_layer)
+        .with(file_layer)
+        .init();
+}
 
 fn main() {
+    init_tracing();
+
     let nr: NodeRequest = match serde_json::from_reader(stdin()) {
         Ok(nr) => nr,
         Err(err) => {
