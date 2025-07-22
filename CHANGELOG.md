@@ -6,6 +6,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- Add `graceful_reboot()` and `graceful_power_off()` functions for graceful
+  system shutdown operations that allow processes to terminate cleanly
+
 ### Changed
 
 - Improved disk usage calculation accuracy to match `df` command output

@@ -1,5 +1,6 @@
 use std::fs;
 use std::io::Write;
+use std::process::Command;
 
 use anyhow::{anyhow, Result};
 use chrono::Local;
@@ -16,6 +17,8 @@ pub(crate) enum Task {
     Ntp { cmd: SubCommand, arg: String },
     PowerOff(String),
     Reboot(String),
+    GracefulReboot(String),
+    GracefulPowerOff(String),
     Service { cmd: SubCommand, arg: String },
     Sshd { cmd: SubCommand, arg: String },
     Syslog { cmd: SubCommand, arg: String },
@@ -72,6 +75,8 @@ impl Task {
             Task::PowerOff(_) => self.poweroff(),
             #[cfg(target_os = "linux")]
             Task::Reboot(_) => self.reboot(),
+            Task::GracefulReboot(_) => self.graceful_reboot(),
+            Task::GracefulPowerOff(_) => self.graceful_poweroff(),
             Task::Hostname { cmd, arg: _ } => self.hostname(*cmd),
             Task::Interface { cmd, arg: _ } => self.interface(*cmd),
             Task::Ntp { cmd, arg: _ } => self.ntp(*cmd),
@@ -95,6 +100,46 @@ impl Task {
         nix::sys::reboot::reboot(nix::sys::reboot::RebootMode::RB_POWER_OFF)
             .map_err(|_| ERR_INVALID_COMMAND)?;
         response(self, OKAY)
+    }
+
+    fn graceful_reboot(&self) -> ExecResult {
+        #[cfg(target_os = "linux")]
+        let cmd = "reboot";
+        #[cfg(target_os = "macos")]
+        let cmd = "sudo";
+
+        #[cfg(target_os = "linux")]
+        let result = Command::new(cmd).spawn();
+        #[cfg(target_os = "macos")]
+        let result = Command::new(cmd).args(["reboot"]).spawn();
+
+        match result {
+            Ok(_) => response(self, OKAY),
+            Err(e) => {
+                log_debug(&format!("Failed to execute graceful reboot: {e}"));
+                Err(ERR_FAIL)
+            }
+        }
+    }
+
+    fn graceful_poweroff(&self) -> ExecResult {
+        #[cfg(target_os = "linux")]
+        let cmd = "poweroff";
+        #[cfg(target_os = "macos")]
+        let cmd = "sudo";
+
+        #[cfg(target_os = "linux")]
+        let result = Command::new(cmd).spawn();
+        #[cfg(target_os = "macos")]
+        let result = Command::new(cmd).args(["shutdown", "-h", "now"]).spawn();
+
+        match result {
+            Ok(_) => response(self, OKAY),
+            Err(e) => {
+                log_debug(&format!("Failed to execute graceful poweroff: {e}"));
+                Err(ERR_FAIL)
+            }
+        }
     }
 
     // Gets or sets version for OS and Product
