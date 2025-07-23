@@ -1,34 +1,49 @@
 mod root;
 
+use std::fs;
 use std::{
     io::{stdin, stdout},
     process,
 };
 
+use anyhow::{Context, Result};
 use data_encoding::BASE64;
 use root::task::{ExecResult, Task, ERR_INVALID_COMMAND};
 use roxy::common::{self, Node, NodeRequest};
-use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+use tracing::level_filters::LevelFilter;
+use tracing_appender::non_blocking::WorkerGuard;
+use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer};
 
-fn init_tracing() {
-    let file_appender = tracing_appender::rolling::never("./", "roxy.log");
+fn init_tracing() -> Result<WorkerGuard> {
+    let log_path = "/opt/clumit/log/roxy.log";
+    let (layer, guard) = {
+        let file = fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(log_path)
+            .with_context(|| format!("Failed to open the log file: {log_path}"))?;
+        let (non_blocking, file_guard) = tracing_appender::non_blocking(file);
+        (
+            fmt::Layer::default()
+                .with_ansi(false)
+                .with_target(false)
+                .with_writer(non_blocking)
+                .with_timer(tracing_subscriber::fmt::time::ChronoLocal::rfc_3339())
+                .with_filter(
+                    EnvFilter::builder()
+                        .with_default_directive(LevelFilter::DEBUG.into())
+                        .from_env_lossy(),
+                ),
+            file_guard,
+        )
+    };
 
-    let stdout_layer = fmt::layer().with_writer(std::io::stdout).with_target(false);
-
-    let file_layer = fmt::layer()
-        .with_writer(file_appender)
-        .with_target(false)
-        .with_ansi(false);
-
-    tracing_subscriber::registry()
-        .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
-        .with(stdout_layer)
-        .with(file_layer)
-        .init();
+    tracing_subscriber::Registry::default().with(layer).init();
+    Ok(guard)
 }
 
 fn main() {
-    init_tracing();
+    let _guard = init_tracing();
 
     let nr: NodeRequest = match serde_json::from_reader(stdin()) {
         Ok(nr) => nr,
