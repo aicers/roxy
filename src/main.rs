@@ -28,10 +28,9 @@ fn init_tracing() -> Result<WorkerGuard> {
                 .with_ansi(false)
                 .with_target(false)
                 .with_writer(non_blocking)
-                .with_timer(tracing_subscriber::fmt::time::ChronoLocal::rfc_3339())
                 .with_filter(
                     EnvFilter::builder()
-                        .with_default_directive(LevelFilter::DEBUG.into())
+                        .with_default_directive(LevelFilter::INFO.into())
                         .from_env_lossy(),
                 ),
             file_guard,

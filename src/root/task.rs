@@ -44,7 +44,7 @@ impl Task {
                 );
                 match decoded {
                     Ok((r, _)) => {
-                        tracing::debug!("arg={r:?}");
+                        tracing::info!("arg={r:?}");
                         Ok(r)
                     }
                     Err(e) => Err(anyhow!("fail to parse argument. {}", e)),
@@ -68,7 +68,7 @@ impl Task {
     // * unsupported command
     // * got error from the executed command
     pub fn execute(&self) -> ExecResult {
-        tracing::debug!("task {self:?}");
+        tracing::info!("task {self:?}");
         match self {
             #[cfg(target_os = "linux")]
             Task::PowerOff(_) => self.poweroff(),
