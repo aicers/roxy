@@ -14,6 +14,8 @@ pub enum Node {
     Ntp(SubCommand),
     PowerOff,
     Reboot,
+    GracefulReboot,
+    GracefulPowerOff,
     Service(SubCommand),
     Sshd(SubCommand),
     Syslog(SubCommand),
