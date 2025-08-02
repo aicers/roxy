@@ -1,5 +1,3 @@
-use std::fs;
-use std::io::Write;
 use std::process::Command;
 
 use anyhow::{anyhow, Result};
