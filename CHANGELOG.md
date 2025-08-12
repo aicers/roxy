@@ -24,6 +24,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   - Added `disk_usage_percentage()` method that calculates usage percentage using
     the same formula as `df`: `(used_space / (used_space + available_space)) * 100`
   - Non-Linux platforms continue to use sysinfo as fallback
+- Migrate logging from `log` crate to `tracing` for improved async support and
+  structured logging capabilities.
 
 ## [0.4.0] - 2025-07-04
 
