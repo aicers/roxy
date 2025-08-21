@@ -30,3 +30,4 @@ uptime_lib = "0.3"
 
 [lints.clippy]
 pedantic = "warn"
+unwrap_used = "warn"
