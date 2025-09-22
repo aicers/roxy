@@ -72,7 +72,7 @@ impl NetplanYaml {
         f.read_to_string(&mut buf)?;
         match serde_yaml::from_str::<NetplanYaml>(&buf) {
             Ok(r) => Ok(r),
-            Err(e) => Err(anyhow!("Error: {}", e)),
+            Err(e) => Err(anyhow!("Error: {e}")),
         }
     }
 
@@ -130,7 +130,7 @@ impl NetplanYaml {
             .ethernets
             .iter_mut()
             .find(|x| x.0 == *ifname)
-            .ok_or_else(|| anyhow!("Interface {} not found", ifname))?;
+            .ok_or_else(|| anyhow!("Interface {ifname} not found"))?;
         if let Some(addrs) = &nic_output.addresses {
             for addr in addrs {
                 if let Some(ifs_addrs) = &mut ifs.addresses {
@@ -236,14 +236,14 @@ fn load_netplan_yaml(dir: &str) -> Result<NetplanYaml> {
 fn validate_ipnetworks(ipnetwork: &str) -> Result<()> {
     match ipnetwork.parse::<IpNet>() {
         Ok(_) => Ok(()),
-        Err(e) => Err(anyhow!("{:?}", e)),
+        Err(e) => Err(anyhow!("{e:?}")),
     }
 }
 
 fn validate_ipaddress(ipaddr: &str) -> Result<()> {
     match ipaddr.parse::<IpAddr>() {
         Ok(_) => Ok(()),
-        Err(e) => Err(anyhow!("{:?}", e)),
+        Err(e) => Err(anyhow!("{e:?}")),
     }
 }
 
@@ -275,7 +275,7 @@ pub(crate) fn init(ifname: &str) -> Result<()> {
         }
     }
 
-    Err(anyhow!("interface \"{}\" not found.", ifname))
+    Err(anyhow!("interface \"{ifname}\" not found."))
 }
 
 // Sets interface ip address or gateway address or nameservers.
@@ -303,14 +303,14 @@ pub(crate) fn set(ifname: &str, nic_output: &NicOutput) -> Result<()> {
     if let Some(addrs) = &nic_output.addresses {
         for ipnetwork in addrs {
             if let Err(e) = validate_ipnetworks(ipnetwork) {
-                return Err(anyhow!("invalid interface address: {}. {:?}", ipnetwork, e));
+                return Err(anyhow!("invalid interface address: {ipnetwork}. {e:?}"));
             }
         }
     }
 
     if let Some(ipaddr) = &nic_output.gateway4 {
         if let Err(e) = validate_ipaddress(ipaddr) {
-            return Err(anyhow!("invalid gateway4 address: {}. {:?}", ipaddr, e));
+            return Err(anyhow!("invalid gateway4 address: {ipaddr}. {e:?}"));
         }
 
         for (nic_name, nic) in &netplan.network.ethernets {
@@ -323,7 +323,7 @@ pub(crate) fn set(ifname: &str, nic_output: &NicOutput) -> Result<()> {
     while let Some(ip) = &nic_output.nameservers {
         for ipaddr in ip {
             if let Err(e) = validate_ipaddress(ipaddr) {
-                return Err(anyhow!("invalid nameserver address: {}. {:?}", ipaddr, e));
+                return Err(anyhow!("invalid nameserver address: {ipaddr}. {e:?}"));
             }
         }
     }

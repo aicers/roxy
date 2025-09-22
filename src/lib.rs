@@ -543,7 +543,7 @@ where
                 bincode::serde::decode_from_slice(&decoded, bincode::config::legacy())?;
             Ok(decoded)
         }
-        Ok(TaskResult::Err(x)) => Err(anyhow!("{}", x)),
-        Err(e) => Err(anyhow!("fail to parse response. {}", e)),
+        Ok(TaskResult::Err(x)) => Err(anyhow!("{x}")),
+        Err(e) => Err(anyhow!("fail to parse response. {e}")),
     }
 }

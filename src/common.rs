@@ -45,7 +45,7 @@ impl NodeRequest {
     {
         match bincode::serde::encode_to_vec(&cmd, bincode::config::legacy()) {
             Ok(arg) => Ok(NodeRequest { kind, arg }),
-            Err(e) => Err(anyhow!("Error: {}", e)),
+            Err(e) => Err(anyhow!("Error: {e}")),
         }
     }
 }

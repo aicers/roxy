@@ -38,7 +38,7 @@ pub(crate) fn set(remote_addrs: Option<&Vec<String>>) -> Result<bool> {
                 .replace('@', "")
                 .trim()
                 .parse::<SocketAddr>()
-                .map_err(|e| anyhow!("invalid address: {:?}", e))?;
+                .map_err(|e| anyhow!("invalid address: {e:?}"))?;
         }
     }
 
