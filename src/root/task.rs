@@ -45,7 +45,7 @@ impl Task {
                         tracing::info!("arg={r:?}");
                         Ok(r)
                     }
-                    Err(e) => Err(anyhow!("fail to parse argument. {}", e)),
+                    Err(e) => Err(anyhow!("fail to parse argument. {e}")),
                 }
             }
             _ => Err(anyhow!(ERR_INVALID_COMMAND)),
