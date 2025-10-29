@@ -3,14 +3,14 @@ mod user;
 
 use std::process::{Command, Stdio};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 pub use common::waitfor_up;
 use common::{NicOutput, Node, NodeRequest, SubCommand};
 use data_encoding::BASE64;
 use serde::Deserialize;
 pub use user::hwinfo::{uptime, version};
-pub use user::process::{process_list, Process};
-pub use user::usg::{resource_usage, ResourceUsage};
+pub use user::process::{Process, process_list};
+pub use user::usg::{ResourceUsage, resource_usage};
 const FAIL_REQUEST: &str = "Failed to create a request";
 
 /// Control services: start, stop, restart, status
