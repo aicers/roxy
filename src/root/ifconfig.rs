@@ -354,12 +354,12 @@ pub(crate) fn get(ifname: Option<&String>) -> Result<Option<Vec<(String, NicOutp
     let netplan = load_netplan_yaml(NETPLAN_PATH)?;
     if let Some(name) = ifname {
         if let Some((_, nic)) = netplan.network.ethernets.iter().find(|(x, _)| *x == *name) {
-            return Ok(Some(vec![(name.to_string(), NicOutput::from(nic))]));
+            return Ok(Some(vec![(name.clone(), NicOutput::from(nic))]));
         }
     } else {
         let mut nic_output = Vec::new();
         for (name, nic) in &netplan.network.ethernets {
-            nic_output.push((name.to_string(), NicOutput::from(nic)));
+            nic_output.push((name.clone(), NicOutput::from(nic)));
         }
         return Ok(Some(nic_output));
     }
