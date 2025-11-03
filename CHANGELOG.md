@@ -4,6 +4,13 @@ This file documents recent notable changes to this project. The format of this
 file is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Revert `bincode` crate from version 2.0 back to 1.3 to align with
+  broader migration strategy
+
 ## [0.5.0] - 2025-08-28
 
 ### Added
@@ -34,7 +41,6 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Update roxy PATH from `/usr/local/aice/bin` to `/opt/clumit/bin`.
 - Update disk mount PATH from `/data` to `/opt/clumit/var`.
 - Update `log_debug` PATH from `/data/logs/apps` to `/opt/clumit/log`.
-- Bump bincode crate to 2.0 and modified the related code.
 
 ## [0.3.0] - 2024-10-07
 
@@ -80,6 +86,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - Initial release.
 
+[Unreleased]: https://github.com/aicers/roxy/compare/0.5.0...main
 [0.5.0]: https://github.com/aicers/roxy/compare/0.4.0...0.5.0
 [0.4.0]: https://github.com/aicers/roxy/compare/0.3.0...0.4.0
 [0.3.0]: https://github.com/aicers/roxy/compare/0.2.1...0.3.0
