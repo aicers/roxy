@@ -539,9 +539,7 @@ where
             let decoded = BASE64
                 .decode(x.as_bytes())
                 .map_err(|_| anyhow!("fail to decode response."))?;
-            let (decoded, _) =
-                bincode::serde::decode_from_slice(&decoded, bincode::config::legacy())?;
-            Ok(decoded)
+            Ok(bincode::deserialize::<T>(&decoded)?)
         }
         Ok(TaskResult::Err(x)) => Err(anyhow!("{x}")),
         Err(e) => Err(anyhow!("fail to parse response. {e}")),
