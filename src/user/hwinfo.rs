@@ -56,17 +56,16 @@ pub fn version() -> (String, String) {
             let lines = contents.lines();
             for line in lines {
                 if line.starts_with("OS:") {
-                    if let Some(pos) = line.find(':') {
-                        if let Some(s) = line.get(pos + 1..) {
-                            os_version = s.trim().to_string();
-                        }
+                    if let Some(pos) = line.find(':')
+                        && let Some(s) = line.get(pos + 1..)
+                    {
+                        os_version = s.trim().to_string();
                     }
-                } else if line.starts_with("Product:") {
-                    if let Some(pos) = line.find(':') {
-                        if let Some(s) = line.get(pos + 1..) {
-                            product_version = s.trim().to_string();
-                        }
-                    }
+                } else if line.starts_with("Product:")
+                    && let Some(pos) = line.find(':')
+                    && let Some(s) = line.get(pos + 1..)
+                {
+                    product_version = s.trim().to_string();
                 }
             }
         }
