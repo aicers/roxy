@@ -287,11 +287,11 @@ impl Task {
                 }
             }
             SubCommand::List => {
-                if let Ok(arg) = self.parse::<Option<String>>() {
+                match self.parse::<Option<String>>() { Ok(arg) => {
                     response(self, root::ifconfig::get_interface_names(arg.as_ref()))
-                } else {
+                } _ => {
                     Err(ERR_INVALID_COMMAND)
-                }
+                }}
             }
             SubCommand::Set => {
                 let (ifname, nic_output) = self
@@ -319,11 +319,11 @@ impl Task {
     fn sshd(&self, cmd: SubCommand) -> ExecResult {
         match cmd {
             SubCommand::Get => {
-                if let Ok(port) = root::sshd::get() {
+                match root::sshd::get() { Ok(port) => {
                     response(self, port)
-                } else {
+                } _ => {
                     Err(ERR_FAIL)
-                }
+                }}
             }
             SubCommand::Set => {
                 let port = self.parse::<String>().map_err(|_| ERR_INVALID_COMMAND)?;
@@ -357,11 +357,11 @@ impl Task {
     fn ntp(&self, cmd: SubCommand) -> ExecResult {
         match cmd {
             SubCommand::Get => {
-                if let Ok(ret) = root::ntp::get() {
+                match root::ntp::get() { Ok(ret) => {
                     response(self, ret)
-                } else {
+                } _ => {
                     Err(ERR_FAIL)
-                }
+                }}
             }
             SubCommand::Disable => {
                 if root::ntp::disable().is_ok() {
