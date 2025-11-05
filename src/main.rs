@@ -23,16 +23,15 @@ fn init_tracing() -> Result<WorkerGuard> {
             .open(log_path)
             .with_context(|| format!("Failed to open the log file: {log_path}"))?;
         let (non_blocking, file_guard) = tracing_appender::non_blocking(file);
+        let env_filter = EnvFilter::builder()
+            .with_default_directive(LevelFilter::INFO.into())
+            .from_env_lossy();
         (
             fmt::Layer::default()
                 .with_ansi(false)
                 .with_target(false)
                 .with_writer(non_blocking)
-                .with_filter(
-                    EnvFilter::builder()
-                        .with_default_directive(LevelFilter::INFO.into())
-                        .from_env_lossy(),
-                ),
+                .with_filter(env_filter),
             file_guard,
         )
     };

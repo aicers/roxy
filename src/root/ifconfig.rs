@@ -302,7 +302,8 @@ pub(crate) fn set(ifname: &str, nic_output: &NicOutput) -> Result<()> {
 
     if let Some(addrs) = &nic_output.addresses {
         for ipnetwork in addrs {
-            if let Err(e) = validate_ipnetworks(ipnetwork) {
+            let res = validate_ipnetworks(ipnetwork);
+            if let Err(e) = res {
                 return Err(anyhow!("invalid interface address: {ipnetwork}. {e:?}"));
             }
         }
@@ -322,7 +323,8 @@ pub(crate) fn set(ifname: &str, nic_output: &NicOutput) -> Result<()> {
 
     while let Some(ip) = &nic_output.nameservers {
         for ipaddr in ip {
-            if let Err(e) = validate_ipaddress(ipaddr) {
+            let res = validate_ipaddress(ipaddr);
+            if let Err(e) = res {
                 return Err(anyhow!("invalid nameserver address: {ipaddr}. {e:?}"));
             }
         }
