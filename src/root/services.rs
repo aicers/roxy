@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use roxy::common::SubCommand;
 
 pub fn service_control(unit: &str, cmd: SubCommand) -> Result<bool> {

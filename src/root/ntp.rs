@@ -63,12 +63,11 @@ pub(crate) fn get() -> Result<Option<Vec<String>>> {
 
     let mut ret = Vec::new();
     for line in lines {
-        if line.starts_with("server ") {
-            if let Some(cap) = re.captures(line) {
-                if let Some(server) = cap.get(1) {
-                    ret.push(server.as_str().to_string());
-                }
-            }
+        if line.starts_with("server ")
+            && let Some(cap) = re.captures(line)
+            && let Some(server) = cap.get(1)
+        {
+            ret.push(server.as_str().to_string());
         }
     }
     if ret.is_empty() {
