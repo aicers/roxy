@@ -1,6 +1,6 @@
 use std::process::Command;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use data_encoding::BASE64;
 use serde::{Deserialize, Serialize};
 

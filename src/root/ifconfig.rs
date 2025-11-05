@@ -7,7 +7,7 @@ use std::{
     process::Command,
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use chrono::{DateTime, Local};
 use ipnet::IpNet;
 use pnet::datalink::interfaces;
@@ -93,14 +93,14 @@ impl NetplanYaml {
         }
         self.network.ethernets.sort_by(|a, b| a.0.cmp(&b.0));
 
-        if let Some(new_bridges) = newyml.network.bridges {
-            if let Some(self_bridges) = &mut self.network.bridges {
-                for (ifname, bridgecfg) in new_bridges {
-                    if let Some(item) = self_bridges.get_mut(&ifname) {
-                        *item = bridgecfg;
-                    } else {
-                        self_bridges.insert(ifname, bridgecfg);
-                    }
+        if let Some(new_bridges) = newyml.network.bridges
+            && let Some(self_bridges) = &mut self.network.bridges
+        {
+            for (ifname, bridgecfg) in new_bridges {
+                if let Some(item) = self_bridges.get_mut(&ifname) {
+                    *item = bridgecfg;
+                } else {
+                    self_bridges.insert(ifname, bridgecfg);
                 }
             }
         }
@@ -178,11 +178,11 @@ impl NetplanYaml {
 
         let mut from = format!("/tmp/{DEFAULT_NETPLAN_YAML}");
         let mut to = format!("{dir}/{DEFAULT_NETPLAN_YAML}");
-        if let Some((_, _, first)) = files.first() {
-            if first != DEFAULT_NETPLAN_YAML {
-                from = format!("/tmp/{first}");
-                to = format!("{dir}/{first}");
-            }
+        if let Some((_, _, first)) = files.first()
+            && first != DEFAULT_NETPLAN_YAML
+        {
+            from = format!("/tmp/{first}");
+            to = format!("{dir}/{first}");
         }
 
         let mut tmp = OpenOptions::new()
@@ -428,25 +428,25 @@ fn list_files(
         let metadata = fs::metadata(filepath)?;
         let modified: DateTime<Local> = metadata.modified()?.into();
 
-        if let Some(filename) = path.path().file_name() {
-            if let Some(filename) = filename.to_str() {
-                if metadata.is_file() {
-                    files.push((
-                        metadata.len(),
-                        format!("{}", modified.format("%Y/%m/%d %T")),
-                        filename.to_string(),
-                    ));
-                } else if subdir && metadata.is_dir() {
-                    files.push((0, String::new(), filename.to_string()));
-                    /*
-                    // if it's required to traverse the directory recursively, uncomment this code
-                    if let Ok(ret) = list_files(filename, except, subdir) {
-                        for (size, modified_time, name) in ret {
-                            files.push((size, modified_time, format!("{}/{}", filename, name)));
-                        }
+        if let Some(filename) = path.path().file_name()
+            && let Some(filename) = filename.to_str()
+        {
+            if metadata.is_file() {
+                files.push((
+                    metadata.len(),
+                    format!("{}", modified.format("%Y/%m/%d %T")),
+                    filename.to_string(),
+                ));
+            } else if subdir && metadata.is_dir() {
+                files.push((0, String::new(), filename.to_string()));
+                /*
+                // if it's required to traverse the directory recursively, uncomment this code
+                if let Ok(ret) = list_files(filename, except, subdir) {
+                    for (size, modified_time, name) in ret {
+                        files.push((size, modified_time, format!("{}/{}", filename, name)));
                     }
-                    */
                 }
+                */
             }
         }
     }

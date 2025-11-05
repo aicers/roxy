@@ -8,11 +8,11 @@ use std::{
 
 use anyhow::{Context, Result};
 use data_encoding::BASE64;
-use root::task::{ExecResult, Task, ERR_INVALID_COMMAND};
+use root::task::{ERR_INVALID_COMMAND, ExecResult, Task};
 use roxy::common::{self, Node, NodeRequest};
 use tracing::level_filters::LevelFilter;
 use tracing_appender::non_blocking::WorkerGuard;
-use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer};
+use tracing_subscriber::{EnvFilter, Layer, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
 fn init_tracing() -> Result<WorkerGuard> {
     let log_path = "/opt/clumit/log/roxy.log";
