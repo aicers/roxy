@@ -21,11 +21,11 @@ const FAIL_REQUEST: &str = "Failed to create a request";
 /// * Return error if target service is not registered as a systemctl service
 /// * Return error if it failed to execute the command
 pub fn service_control(subcmd: SubCommand, service: String) -> Result<bool> {
-    match NodeRequest::new::<String>(Node::Service(subcmd), service) { Ok(req) => {
+    if let Ok(req) = NodeRequest::new::<String>(Node::Service(subcmd), service) {
         run_roxy::<bool>(req)
-    } _ => {
+    } else {
         Err(anyhow!(FAIL_REQUEST))
-    }}
+    }
 }
 
 /// Returns a hostname.
@@ -49,11 +49,11 @@ pub fn hostname() -> String {
 /// * If reading or writing of an OS version file fails, then an error
 ///   is returned.
 pub fn set_os_version(ver: String) -> Result<String> {
-    match NodeRequest::new::<String>(Node::Version(SubCommand::SetOsVersion), ver) { Ok(req) => {
+    if let Ok(req) = NodeRequest::new::<String>(Node::Version(SubCommand::SetOsVersion), ver) {
         run_roxy::<String>(req)
-    } _ => {
+    } else {
         Err(anyhow!(FAIL_REQUEST))
-    }}
+    }
 }
 
 /// Sets a version for product.
@@ -69,11 +69,11 @@ pub fn set_os_version(ver: String) -> Result<String> {
 /// * If reading or writing of a product version file fails, then an error
 ///   is returned.
 pub fn set_product_version(ver: String) -> Result<String> {
-    match NodeRequest::new::<String>(Node::Version(SubCommand::SetProductVersion), ver) { Ok(req) => {
+    if let Ok(req) = NodeRequest::new::<String>(Node::Version(SubCommand::SetProductVersion), ver) {
         run_roxy::<String>(req)
-    } _ => {
+    } else {
         Err(anyhow!(FAIL_REQUEST))
-    }}
+    }
 }
 
 /// Sets a hostname.
@@ -88,11 +88,11 @@ pub fn set_product_version(ver: String) -> Result<String> {
 ///   is not successfully base64-decoded, then an error is returned.
 /// * If `hostname::set` fails, then an error is returned.
 pub fn set_hostname(host: String) -> Result<String> {
-    match NodeRequest::new::<String>(Node::Hostname(SubCommand::Set), host) { Ok(req) => {
+    if let Ok(req) = NodeRequest::new::<String>(Node::Hostname(SubCommand::Set), host) {
         run_roxy::<String>(req)
-    } _ => {
+    } else {
         Err(anyhow!(FAIL_REQUEST))
-    }}
+    }
 }
 
 /// Returns tuples of (facilitiy, proto, addr) of syslog servers.
@@ -110,11 +110,11 @@ pub fn set_hostname(host: String) -> Result<String> {
 /// * If it fails to open `/etc/rsyslog.d/50-default.conf`, then an error
 ///   is returned.
 pub fn syslog_servers() -> Result<Option<Vec<(String, String, String)>>> {
-    match NodeRequest::new::<Option<String>>(Node::Syslog(SubCommand::Get), None) { Ok(req) => {
+    if let Ok(req) = NodeRequest::new::<Option<String>>(Node::Syslog(SubCommand::Get), None) {
         run_roxy::<Option<Vec<(String, String, String)>>>(req)
-    } _ => {
+    } else {
         Err(anyhow!(FAIL_REQUEST))
-    }}
+    }
 }
 
 /// Sets syslog servers.
@@ -133,11 +133,11 @@ pub fn syslog_servers() -> Result<Option<Vec<(String, String, String)>>> {
 ///   an error is returned.
 /// * If it fails to restart rsyslogd service, then an error is returned.
 pub fn set_syslog_servers(servers: Vec<String>) -> Result<String> {
-    match NodeRequest::new::<Vec<String>>(Node::Syslog(SubCommand::Set), servers) { Ok(req) => {
+    if let Ok(req) = NodeRequest::new::<Vec<String>>(Node::Syslog(SubCommand::Set), servers) {
         run_roxy::<String>(req)
-    } _ => {
+    } else {
         Err(anyhow!(FAIL_REQUEST))
-    }}
+    }
 }
 
 /// Initiates syslog servers.
@@ -156,11 +156,11 @@ pub fn set_syslog_servers(servers: Vec<String>) -> Result<String> {
 ///   an error is returned.
 /// * If it fails to restart rsyslogd service, then an error is returned.
 pub fn init_syslog_servers() -> Result<String> {
-    match NodeRequest::new::<Option<String>>(Node::Syslog(SubCommand::Init), None) { Ok(req) => {
+    if let Ok(req) = NodeRequest::new::<Option<String>>(Node::Syslog(SubCommand::Init), None) {
         run_roxy::<String>(req)
-    } _ => {
+    } else {
         Err(anyhow!(FAIL_REQUEST))
-    }}
+    }
 }
 
 /// (Re)start syslog services.
@@ -177,11 +177,11 @@ pub fn init_syslog_servers() -> Result<String> {
 ///   is not successfully base64-decoded, then an error is returned.
 /// * If it fails to restart rsyslogd service, then an error is returned.
 pub fn start_syslog_servers() -> Result<bool> {
-    match NodeRequest::new::<Option<String>>(Node::Syslog(SubCommand::Enable), None) { Ok(req) => {
+    if let Ok(req) = NodeRequest::new::<Option<String>>(Node::Syslog(SubCommand::Enable), None) {
         run_roxy::<bool>(req)
-    } _ => {
+    } else {
         Err(anyhow!(FAIL_REQUEST))
-    }}
+    }
 }
 
 /// Returns the list of interface names.
@@ -197,11 +197,11 @@ pub fn start_syslog_servers() -> Result<bool> {
 /// * If a response message from roxy is invalid regarding JSON syntax or
 ///   is not successfully base64-decoded, then an error is returned.
 pub fn list_of_interfaces(prefix: Option<String>) -> Result<Vec<String>> {
-    match NodeRequest::new::<Option<String>>(Node::Interface(SubCommand::List), prefix) { Ok(req) => {
+    if let Ok(req) = NodeRequest::new::<Option<String>>(Node::Interface(SubCommand::List), prefix) {
         run_roxy::<Vec<String>>(req)
-    } _ => {
+    } else {
         Err(anyhow!(FAIL_REQUEST))
-    }}
+    }
 }
 
 /// Returns the settings of interface. All interfafces if None for device name
@@ -217,11 +217,11 @@ pub fn list_of_interfaces(prefix: Option<String>) -> Result<Vec<String>> {
 /// * If a response message from roxy is invalid regarding JSON syntax or
 ///   is not successfully base64-decoded, then an error is returned.
 pub fn interfaces(dev: Option<String>) -> Result<Option<Vec<(String, NicOutput)>>> {
-    match NodeRequest::new::<Option<String>>(Node::Interface(SubCommand::Get), dev) { Ok(req) => {
+    if let Ok(req) = NodeRequest::new::<Option<String>>(Node::Interface(SubCommand::Get), dev) {
         run_roxy::<Option<Vec<(String, NicOutput)>>>(req)
-    } _ => {
+    } else {
         Err(anyhow!(FAIL_REQUEST))
-    }}
+    }
 }
 
 /// Sets an interface setting.
@@ -250,12 +250,13 @@ pub fn set_interface(
     nameservers: Option<Vec<String>>,
 ) -> Result<String> {
     let nic = NicOutput::new(addresses, dhcp4, gateway4, nameservers);
-    match NodeRequest::new::<(String, NicOutput)>(Node::Interface(SubCommand::Set), (dev, nic))
-    { Ok(req) => {
+    if let Ok(req) =
+        NodeRequest::new::<(String, NicOutput)>(Node::Interface(SubCommand::Set), (dev, nic))
+    {
         run_roxy::<String>(req)
-    } _ => {
+    } else {
         Err(anyhow!(FAIL_REQUEST))
-    }}
+    }
 }
 
 /// Init the settings of an interface.
@@ -272,12 +273,13 @@ pub fn set_interface(
 /// * If if failed to execute netplan apply command, then an error is returned.
 /// * If it failed to execute ifconfig command, then an error is returned.
 pub fn init_interface(dev: String) -> Result<String> {
-    match NodeRequest::new::<Option<String>>(Node::Interface(SubCommand::Init), Some(dev))
-    { Ok(req) => {
+    if let Ok(req) =
+        NodeRequest::new::<Option<String>>(Node::Interface(SubCommand::Init), Some(dev))
+    {
         run_roxy::<String>(req)
-    } _ => {
+    } else {
         Err(anyhow!(FAIL_REQUEST))
-    }}
+    }
 }
 
 /// Removes interface/gateway/nameserver address or dhcp4 option of interface.
@@ -302,12 +304,13 @@ pub fn remove_interface(
     nameservers: Option<Vec<String>>,
 ) -> Result<String> {
     let nic = NicOutput::new(addresses, dhcp4, gateway4, nameservers);
-    match NodeRequest::new::<(String, NicOutput)>(Node::Interface(SubCommand::Delete), (dev, nic))
-    { Ok(req) => {
+    if let Ok(req) =
+        NodeRequest::new::<(String, NicOutput)>(Node::Interface(SubCommand::Delete), (dev, nic))
+    {
         run_roxy::<String>(req)
-    } _ => {
+    } else {
         Err(anyhow!(FAIL_REQUEST))
-    }}
+    }
 }
 
 /// Reboots the system forcefully and immediately.
@@ -328,11 +331,11 @@ pub fn remove_interface(
 ///   is not successfully base64-decoded, then an error is returned.
 /// * If `nix::sys::reboot::reboot` fails, then an error is returned.
 pub fn reboot() -> Result<String> {
-    match NodeRequest::new::<Option<String>>(Node::Reboot, None) { Ok(req) => {
+    if let Ok(req) = NodeRequest::new::<Option<String>>(Node::Reboot, None) {
         run_roxy::<String>(req)
-    } _ => {
+    } else {
         Err(anyhow!(FAIL_REQUEST))
-    }}
+    }
 }
 
 /// Turns the system off forcefully and immediately.
@@ -353,11 +356,11 @@ pub fn reboot() -> Result<String> {
 ///   is not successfully base64-decoded, then an error is returned.
 /// * If `nix::sys::reboot::reboot` fails, then an error is returned.
 pub fn power_off() -> Result<String> {
-    match NodeRequest::new::<Option<String>>(Node::PowerOff, None) { Ok(req) => {
+    if let Ok(req) = NodeRequest::new::<Option<String>>(Node::PowerOff, None) {
         run_roxy::<String>(req)
-    } _ => {
+    } else {
         Err(anyhow!(FAIL_REQUEST))
-    }}
+    }
 }
 
 /// Reboots the system gracefully.
@@ -377,11 +380,11 @@ pub fn power_off() -> Result<String> {
 ///   is not successfully base64-decoded, then an error is returned.
 /// * If executing the `reboot` command fails, then an error is returned.
 pub fn graceful_reboot() -> Result<String> {
-    match NodeRequest::new::<Option<String>>(Node::GracefulReboot, None) { Ok(req) => {
+    if let Ok(req) = NodeRequest::new::<Option<String>>(Node::GracefulReboot, None) {
         run_roxy::<String>(req)
-    } _ => {
+    } else {
         Err(anyhow!(FAIL_REQUEST))
-    }}
+    }
 }
 
 /// Turns the system off gracefully.
@@ -401,11 +404,11 @@ pub fn graceful_reboot() -> Result<String> {
 ///   is not successfully base64-decoded, then an error is returned.
 /// * If executing the `poweroff` command fails, then an error is returned.
 pub fn graceful_power_off() -> Result<String> {
-    match NodeRequest::new::<Option<String>>(Node::GracefulPowerOff, None) { Ok(req) => {
+    if let Ok(req) = NodeRequest::new::<Option<String>>(Node::GracefulPowerOff, None) {
         run_roxy::<String>(req)
-    } _ => {
+    } else {
         Err(anyhow!(FAIL_REQUEST))
-    }}
+    }
 }
 
 /// Return configured sshd port number.
@@ -415,11 +418,11 @@ pub fn graceful_power_off() -> Result<String> {
 /// * Return error if it fails to build request message
 /// * Return error if `run_roxy` function returns error
 pub fn get_sshd() -> Result<u16> {
-    match NodeRequest::new::<Option<String>>(Node::Sshd(SubCommand::Get), None) { Ok(req) => {
+    if let Ok(req) = NodeRequest::new::<Option<String>>(Node::Sshd(SubCommand::Get), None) {
         run_roxy::<u16>(req)
-    } _ => {
+    } else {
         Err(anyhow!(FAIL_REQUEST))
-    }}
+    }
 }
 
 /// Restart sshd service.
@@ -429,11 +432,11 @@ pub fn get_sshd() -> Result<u16> {
 /// * Return error if it fails to build request message
 /// * Return error if `run_roxy` function returns error
 pub fn start_sshd() -> Result<bool> {
-    match NodeRequest::new::<Option<String>>(Node::Sshd(SubCommand::Enable), None) { Ok(req) => {
+    if let Ok(req) = NodeRequest::new::<Option<String>>(Node::Sshd(SubCommand::Enable), None) {
         run_roxy::<bool>(req)
-    } _ => {
+    } else {
         Err(anyhow!(FAIL_REQUEST))
-    }}
+    }
 }
 
 /// Return configured NTP server FQDNs
@@ -443,11 +446,11 @@ pub fn start_sshd() -> Result<bool> {
 /// * Return error if it fails to build request message
 /// * Return error if `run_roxy` function returns error
 pub fn get_ntp() -> Result<Option<Vec<String>>> {
-    match NodeRequest::new::<Option<String>>(Node::Ntp(SubCommand::Get), None) { Ok(req) => {
+    if let Ok(req) = NodeRequest::new::<Option<String>>(Node::Ntp(SubCommand::Get), None) {
         run_roxy::<Option<Vec<String>>>(req)
-    } _ => {
+    } else {
         Err(anyhow!(FAIL_REQUEST))
-    }}
+    }
 }
 
 /// Set ntp servers
@@ -457,11 +460,11 @@ pub fn get_ntp() -> Result<Option<Vec<String>>> {
 /// * Return error if it fails to build request message
 /// * Return error if `run_roxy` function returns error
 pub fn set_ntp(servers: Vec<String>) -> Result<bool> {
-    match NodeRequest::new::<Vec<String>>(Node::Ntp(SubCommand::Get), servers) { Ok(req) => {
+    if let Ok(req) = NodeRequest::new::<Vec<String>>(Node::Ntp(SubCommand::Get), servers) {
         run_roxy::<bool>(req)
-    } _ => {
+    } else {
         Err(anyhow!(FAIL_REQUEST))
-    }}
+    }
 }
 
 /// (Re)Start ntp service
@@ -471,11 +474,11 @@ pub fn set_ntp(servers: Vec<String>) -> Result<bool> {
 /// * Return error if it fails to build request message
 /// * Return error if `run_roxy` function returns error
 pub fn start_ntp() -> Result<bool> {
-    match NodeRequest::new::<Option<String>>(Node::Ntp(SubCommand::Enable), None) { Ok(req) => {
+    if let Ok(req) = NodeRequest::new::<Option<String>>(Node::Ntp(SubCommand::Enable), None) {
         run_roxy::<bool>(req)
-    } _ => {
+    } else {
         Err(anyhow!(FAIL_REQUEST))
-    }}
+    }
 }
 
 /// Stop ntp service
@@ -485,11 +488,11 @@ pub fn start_ntp() -> Result<bool> {
 /// * Return error if it fails to build request message
 /// * Return error if `run_roxy` function returns error
 pub fn stop_ntp() -> Result<bool> {
-    match NodeRequest::new::<Option<String>>(Node::Ntp(SubCommand::Disable), None) { Ok(req) => {
+    if let Ok(req) = NodeRequest::new::<Option<String>>(Node::Ntp(SubCommand::Disable), None) {
         run_roxy::<bool>(req)
-    } _ => {
+    } else {
         Err(anyhow!(FAIL_REQUEST))
-    }}
+    }
 }
 
 /// Response message from Roxy to caller
@@ -522,13 +525,13 @@ where
         .stdout(Stdio::piped())
         .spawn()?;
 
-    match child.stdin.take() { Some(child_stdin) => {
+    if let Some(child_stdin) = child.stdin.take() {
         std::thread::spawn(move || {
             serde_json::to_writer(child_stdin, &req).expect("`Task` should serialize to JSON");
         });
-    } _ => {
+    } else {
         return Err(anyhow!("failed to execute roxy"));
-    }}
+    }
 
     let output = child.wait_with_output()?;
     match serde_json::from_reader::<&[u8], TaskResult>(&output.stdout) {
