@@ -43,7 +43,7 @@ impl NodeRequest {
     where
         T: Serialize,
     {
-        match bincode::serde::encode_to_vec(&cmd, bincode::config::legacy()) {
+        match bincode::serialize(&cmd) {
             Ok(arg) => Ok(NodeRequest { kind, arg }),
             Err(e) => Err(anyhow!("Error: {e}")),
         }

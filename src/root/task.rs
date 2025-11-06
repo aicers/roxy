@@ -36,12 +36,8 @@ impl Task {
             | Task::Sshd { cmd: _, arg }
             | Task::Syslog { cmd: _, arg }
             | Task::Version { cmd: _, arg } => {
-                let decoded = bincode::serde::decode_from_slice::<T, _>(
-                    &BASE64.decode(arg.as_bytes())?,
-                    bincode::config::legacy(),
-                );
-                match decoded {
-                    Ok((r, _)) => {
+                match bincode::deserialize::<T>(&BASE64.decode(arg.as_bytes())?) {
+                    Ok(r) => {
                         tracing::info!("arg={r:?}");
                         Ok(r)
                     }
@@ -408,7 +404,7 @@ fn response<I>(taskcode: &Task, input: I) -> ExecResult
 where
     I: Serialize,
 {
-    if let Ok(message) = bincode::serde::encode_to_vec(&input, bincode::config::legacy()) {
+    if let Ok(message) = bincode::serialize(&input) {
         if u32::try_from(message.len()).is_err() {
             tracing::error!("reponse is too long. Task: {taskcode:?}");
             Err(ERR_MESSAGE_TOO_LONG)
