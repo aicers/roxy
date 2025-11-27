@@ -5,7 +5,7 @@ use std::{
     net::SocketAddr,
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 
 const RSYSLOG_CONF: &str = "/etc/rsyslog.d/50-default.conf";
 const DEFAULT_FACILITY: &str = "user.*";
@@ -110,14 +110,14 @@ pub(crate) fn get() -> Result<Option<Vec<(String, String, String)>>> {
             continue;
         };
 
-        if r.len() == 2 {
-            if let Some(first) = r.first() {
-                let facility = (*first).trim().to_string();
-                if let Some(last) = r.last() {
-                    if !last.trim().is_empty() {
-                        ret.push((facility, proto, (*last).to_string()));
-                    }
-                }
+        if r.len() == 2
+            && let Some(first) = r.first()
+        {
+            let facility = (*first).trim().to_string();
+            if let Some(last) = r.last()
+                && !last.trim().is_empty()
+            {
+                ret.push((facility, proto, (*last).to_string()));
             }
         }
     }
