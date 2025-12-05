@@ -1,7 +1,7 @@
 mod interface;
 mod services;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 pub use interface::{Nic, NicOutput};
 use serde::{Deserialize, Serialize};
 pub use services::waitfor_up;

@@ -63,10 +63,10 @@ pub(crate) fn get() -> Result<u16> {
     for line in lines {
         if line.starts_with("Port ") {
             let s = line.split(' ').collect::<Vec<_>>();
-            if let Some(port) = s.get(1) {
-                if let Ok(port) = port.parse::<u16>() {
-                    return Ok(port);
-                }
+            if let Some(port) = s.get(1)
+                && let Ok(port) = port.parse::<u16>()
+            {
+                return Ok(port);
             }
         }
     }

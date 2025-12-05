@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use sysinfo::{System, Users, MINIMUM_CPU_UPDATE_INTERVAL};
+use sysinfo::{MINIMUM_CPU_UPDATE_INTERVAL, System, Users};
 
 const KTHREAD_PID: u32 = 2;
 const DEFAULT_USER_NAME: &str = "N/A";
