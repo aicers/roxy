@@ -56,9 +56,9 @@ jobs:
             RELEASE_NOTES=$(echo "$RELEASE_NOTES" | sed '/^$/d' | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}')
           fi
 
-          # Use base64 encoding to safely pass the content through GitHub Actions
-          printf '%s' "$RELEASE_NOTES" | base64 | tr -d '\n' > /tmp/release_notes.b64
-          echo "release_notes_b64=$(cat /tmp/release_notes.b64)" >> "$GITHUB_OUTPUT"
+          # Encode release notes in Base64 without line wraps to handle special characters
+          encoded=$(printf '%s' "$RELEASE_NOTES" | base64 -w 0)
+          echo "release_notes_b64=$encoded" >> "$GITHUB_OUTPUT"
       - name: Create a Release and Upload Assets
         run: |
           # Decode the base64-encoded release notes
