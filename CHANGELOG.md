@@ -4,6 +4,16 @@ This file documents recent notable changes to this project. The format of this
 file is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Add `roxyd` binary entrypoint as a new implementation path for QUIC/mTLS
+  connectivity with Manager. This is a skeleton that coexists with the legacy
+  `roxy` binary and does not include protocol handlers yet.
+- Add `RoxydConfig`, `QuicConfig`, and `MtlsConfig` configuration structures
+  for the new `roxyd` daemon.
+
 ## [0.5.1] - 2025-11-26
 
 ### Changed
@@ -86,6 +96,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - Initial release.
 
+[Unreleased]: https://github.com/aicers/roxy/compare/0.5.1...main
 [0.5.1]: https://github.com/aicers/roxy/compare/0.5.0...0.5.1
 [0.5.0]: https://github.com/aicers/roxy/compare/0.4.0...0.5.0
 [0.4.0]: https://github.com/aicers/roxy/compare/0.3.0...0.4.0
