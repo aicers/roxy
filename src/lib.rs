@@ -1,4 +1,5 @@
 pub mod common;
+pub mod config;
 mod user;
 
 use std::process::{Command, Stdio};
