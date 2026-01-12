@@ -10,9 +10,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - Add `roxyd` binary entrypoint as a new implementation path for QUIC/mTLS
   connectivity with Manager. This is a skeleton that coexists with the legacy
-  `roxy` binary and does not include protocol handlers yet.
-- Add `RoxydConfig`, `QuicConfig`, and `MtlsConfig` configuration structures
-  for the new `roxyd` daemon.
+  `roxy` binary and does not include protocol handlers yet. Run with
+  `cargo run --bin roxyd -- --config path/to/config.toml`.
+- Add TOML configuration file support for `roxyd` with required fields for
+  Manager address, QUIC transport settings, and mTLS certificate paths.
+  Configuration values can be overridden using environment variables prefixed
+  with `ROXYD_` (e.g., `ROXYD_MANAGER_ADDRESS`).
 
 ## [0.5.1] - 2025-11-26
 

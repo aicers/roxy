@@ -121,8 +121,8 @@ manager_address = "192.168.1.100:4433"
 
 # QUIC transport configuration
 [quic]
-bind_address = "0.0.0.0:0"       # Local bind address (optional)
-idle_timeout_ms = 30000          # Connection idle timeout in ms (optional)
+bind_address = "0.0.0.0:0"       # Local bind address
+idle_timeout_ms = 30000          # Connection idle timeout in ms
 
 # mTLS certificate configuration
 [mtls]
@@ -131,8 +131,8 @@ key_path = "/etc/roxyd/key.pem"       # Private key
 ca_cert_path = "/etc/roxyd/ca.pem"    # CA certificate for Manager verification
 ```
 
-All configuration fields are optional. If no configuration file is provided,
-`roxyd` will start with default settings.
+All configuration fields are required. Configuration can also be overridden
+using environment variables prefixed with `ROXYD_` (e.g., `ROXYD_MANAGER_ADDRESS`).
 
 ## License
 
