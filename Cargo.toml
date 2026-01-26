@@ -7,6 +7,8 @@ edition = "2024"
 anyhow = "1"
 bincode = "1.3"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
+clap = { version = "4.5", features = ["derive"] }
+config = "0.14"
 data-encoding = "2"
 gethostname = "1.0"
 hostname = { version = "0.4", features = ["set"] }
@@ -22,7 +24,8 @@ serde_yaml = "0.9"
 sysinfo = "0.38"
 systemctl = "0.5"
 thiserror = "2"
-tokio = { version = "1", features = ["time"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
+toml = "0.9"
 tracing = "0.1"
 tracing-appender = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
