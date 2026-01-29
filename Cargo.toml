@@ -19,7 +19,7 @@ serde_derive = "1"
 serde_json = "1"
 serde_with = "3"
 serde_yaml = "0.9"
-sysinfo = "0.37"
+sysinfo = "0.38"
 systemctl = "0.5"
 thiserror = "2"
 tokio = { version = "1", features = ["time"] }
