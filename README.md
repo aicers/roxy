@@ -93,6 +93,47 @@ Roxy is a root proxy that executes a system command requiring the root privilege
       instead of **systemctl**
     - **systemctl** did not detect ufw status exactly
 
+## roxyd (experimental)
+
+`roxyd` is a new implementation path that coexists with the legacy `roxy`
+binary. It is designed to connect to the Manager via QUIC with mTLS
+authentication.
+
+**Important notes:**
+
+- This is currently a skeleton implementation with no protocol handlers active.
+- Existing legacy code **must not** be removed while legacy mode is still in use.
+- Current limitations: skeleton only; no review-protocol request handling yet.
+
+### Running roxyd
+
+```sh
+cargo run --bin roxyd -- --config path/to/config.toml
+```
+
+### Configuration
+
+Create a TOML configuration file with the following structure:
+
+```toml
+# Address of the Manager to connect to
+manager_address = "192.168.1.100:4433"
+
+# QUIC transport configuration
+[quic]
+bind_address = "0.0.0.0:0"       # Local bind address
+idle_timeout_ms = 30000          # Connection idle timeout in ms
+
+# mTLS certificate configuration
+[mtls]
+cert_path = "/etc/roxyd/cert.pem"     # Client certificate
+key_path = "/etc/roxyd/key.pem"       # Private key
+ca_cert_path = "/etc/roxyd/ca.pem"    # CA certificate for Manager verification
+```
+
+All configuration fields are required. Configuration can also be overridden
+using environment variables prefixed with `ROXYD_` (e.g., `ROXYD_MANAGER_ADDRESS`).
+
 ## License
 
 Copyright 2022-2024 ClumL Inc.
