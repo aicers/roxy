@@ -10,28 +10,16 @@
 //! cargo run --bin roxyd -- --config path/to/config.toml
 //! ```
 
-mod config;
+mod settings;
 
-use std::{fs, path::Path, path::PathBuf, process};
+use std::{fs, path::Path, process};
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use config::{MtlsConfig, QuicConfig, RoxydConfig};
+use settings::{Args, MtlsConfig, QuicConfig, RoxydConfig};
 use tracing::level_filters::LevelFilter;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::{EnvFilter, Layer, fmt, layer::SubscriberExt, util::SubscriberInitExt};
-
-const DEFAULT_LOG_PATH: &str = "/opt/clumit/log/roxyd.log";
-
-/// roxyd - QUIC/mTLS connectivity daemon for Manager communication
-#[derive(Parser, Debug)]
-#[command(name = "roxyd")]
-#[command(about = "QUIC/mTLS connectivity daemon for Manager communication")]
-struct Args {
-    /// Path to the configuration file (TOML format)
-    #[arg(short, long)]
-    config: PathBuf,
-}
 
 /// Initializes tracing/logging infrastructure.
 ///
@@ -41,14 +29,13 @@ struct Args {
 /// # Errors
 ///
 /// Returns an error if the log file cannot be opened or created.
-fn init_tracing() -> Result<WorkerGuard> {
-    let log_path = DEFAULT_LOG_PATH;
+fn init_tracing(log_path: &Path) -> Result<WorkerGuard> {
     let (layer, guard) = {
         let file = fs::OpenOptions::new()
             .create(true)
             .append(true)
             .open(log_path)
-            .with_context(|| format!("Failed to open the log file: {log_path}"))?;
+            .with_context(|| format!("Failed to open the log file: {}", log_path.display()))?;
         let (non_blocking, file_guard) = tracing_appender::non_blocking(file);
         let env_filter = EnvFilter::builder()
             .with_default_directive(LevelFilter::INFO.into())
@@ -110,7 +97,17 @@ fn log_mtls_config(mtls: &MtlsConfig) {
 
 #[tokio::main]
 async fn main() {
-    let _guard = match init_tracing() {
+    let args = Args::parse();
+
+    let config = match load_config(&args.config) {
+        Ok(cfg) => cfg,
+        Err(e) => {
+            eprintln!("Failed to load config from {}: {e}", args.config.display());
+            process::exit(1);
+        }
+    };
+
+    let _guard = match init_tracing(&config.log_path) {
         Ok(guard) => guard,
         Err(e) => {
             eprintln!("Failed to initialize tracing: {e}");
@@ -118,20 +115,7 @@ async fn main() {
         }
     };
 
-    let args = Args::parse();
-
-    let config = match load_config(&args.config) {
-        Ok(cfg) => {
-            tracing::info!("Loaded config from: {:?}", args.config);
-            cfg
-        }
-        Err(e) => {
-            tracing::error!("Failed to load config: {e}");
-            eprintln!("Failed to load config from {}: {e}", args.config.display());
-            process::exit(1);
-        }
-    };
-
+    tracing::info!("Loaded config from: {:?}", args.config);
     log_config_status(&config);
 
     tracing::info!("roxyd is running (skeleton mode - no protocol handlers active)");
