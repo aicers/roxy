@@ -416,3 +416,478 @@ where
         Err(ERR_PARSE_FAIL)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Creates a base64-encoded bincode serialized value for use as Task args.
+    fn encode_arg<T: Serialize>(value: &T) -> String {
+        let bytes = bincode::serialize(value).expect("bincode serialize should succeed");
+        BASE64.encode(&bytes)
+    }
+
+    // Task::parse decoding tests
+    //
+    // The parse method decodes the arg field from base64+bincode format.
+    // It only works for Task variants that have cmd/arg fields (Hostname,
+    // Interface, Ntp, Service, Sshd, Syslog, Version). PowerOff, Reboot,
+    // GracefulReboot, GracefulPowerOff, and Ufw return ERR_INVALID_COMMAND.
+
+    #[test]
+    fn parse_decodes_string_arg() {
+        let value = "test-hostname".to_string();
+        let task = Task::Hostname {
+            cmd: SubCommand::Set,
+            arg: encode_arg(&value),
+        };
+
+        let parsed: String = task.parse().expect("parse should succeed");
+        assert_eq!(parsed, value);
+    }
+
+    #[test]
+    fn parse_decodes_vec_string_arg() {
+        let value = vec![
+            "server1.example.com".to_string(),
+            "server2.example.com".to_string(),
+        ];
+        let task = Task::Ntp {
+            cmd: SubCommand::Set,
+            arg: encode_arg(&value),
+        };
+
+        let parsed: Vec<String> = task.parse().expect("parse should succeed");
+        assert_eq!(parsed, value);
+    }
+
+    #[test]
+    fn parse_decodes_option_string_none() {
+        let value: Option<String> = None;
+        let task = Task::Interface {
+            cmd: SubCommand::Get,
+            arg: encode_arg(&value),
+        };
+
+        let parsed: Option<String> = task.parse().expect("parse should succeed");
+        assert_eq!(parsed, None);
+    }
+
+    #[test]
+    fn parse_decodes_option_string_some() {
+        let value: Option<String> = Some("eth0".to_string());
+        let task = Task::Interface {
+            cmd: SubCommand::List,
+            arg: encode_arg(&value),
+        };
+
+        let parsed: Option<String> = task.parse().expect("parse should succeed");
+        assert_eq!(parsed, Some("eth0".to_string()));
+    }
+
+    #[test]
+    fn parse_decodes_tuple_with_nic_output() {
+        let nic = NicOutput::new(
+            Some(vec!["192.168.1.100/24".to_string()]),
+            Some(false),
+            Some("192.168.1.1".to_string()),
+            Some(vec!["8.8.8.8".to_string()]),
+        );
+        let value = ("eth0".to_string(), nic);
+        let task = Task::Interface {
+            cmd: SubCommand::Set,
+            arg: encode_arg(&value),
+        };
+
+        let parsed: (String, NicOutput) = task.parse().expect("parse should succeed");
+        assert_eq!(parsed.0, "eth0");
+        assert_eq!(
+            parsed.1.addresses,
+            Some(vec!["192.168.1.100/24".to_string()])
+        );
+        assert_eq!(parsed.1.dhcp4, Some(false));
+        assert_eq!(parsed.1.gateway4, Some("192.168.1.1".to_string()));
+        assert_eq!(parsed.1.nameservers, Some(vec!["8.8.8.8".to_string()]));
+    }
+
+    #[test]
+    fn parse_decodes_empty_vec() {
+        let value: Vec<String> = vec![];
+        let task = Task::Syslog {
+            cmd: SubCommand::Set,
+            arg: encode_arg(&value),
+        };
+
+        let parsed: Vec<String> = task.parse().expect("parse should succeed");
+        assert!(parsed.is_empty());
+    }
+
+    #[test]
+    fn parse_works_for_all_supported_variants() {
+        // Tests that parse works for each Task variant that has cmd/arg fields.
+        let arg = encode_arg(&"test".to_string());
+
+        let tasks = [
+            Task::Hostname {
+                cmd: SubCommand::Get,
+                arg: arg.clone(),
+            },
+            Task::Interface {
+                cmd: SubCommand::Get,
+                arg: arg.clone(),
+            },
+            Task::Ntp {
+                cmd: SubCommand::Get,
+                arg: arg.clone(),
+            },
+            Task::Service {
+                cmd: SubCommand::Status,
+                arg: arg.clone(),
+            },
+            Task::Sshd {
+                cmd: SubCommand::Get,
+                arg: arg.clone(),
+            },
+            Task::Syslog {
+                cmd: SubCommand::Get,
+                arg: arg.clone(),
+            },
+            Task::Version {
+                cmd: SubCommand::SetOsVersion,
+                arg,
+            },
+        ];
+
+        for task in tasks {
+            let parsed: String = task
+                .parse()
+                .expect("parse should succeed for supported variant");
+            assert_eq!(parsed, "test");
+        }
+    }
+
+    // Invalid command path tests
+    //
+    // Task variants PowerOff, Reboot, GracefulReboot, GracefulPowerOff, and Ufw
+    // do not support parse and return ERR_INVALID_COMMAND.
+
+    #[test]
+    fn parse_rejects_poweroff_variant() {
+        let task = Task::PowerOff(String::new());
+        let result = task.parse::<String>();
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains(ERR_INVALID_COMMAND)
+        );
+    }
+
+    #[test]
+    fn parse_rejects_reboot_variant() {
+        let task = Task::Reboot(String::new());
+        let result = task.parse::<String>();
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains(ERR_INVALID_COMMAND)
+        );
+    }
+
+    #[test]
+    fn parse_rejects_graceful_reboot_variant() {
+        let task = Task::GracefulReboot(String::new());
+        let result = task.parse::<String>();
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains(ERR_INVALID_COMMAND)
+        );
+    }
+
+    #[test]
+    fn parse_rejects_graceful_poweroff_variant() {
+        let task = Task::GracefulPowerOff(String::new());
+        let result = task.parse::<String>();
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains(ERR_INVALID_COMMAND)
+        );
+    }
+
+    #[test]
+    fn parse_rejects_ufw_variant() {
+        let task = Task::Ufw {
+            cmd: SubCommand::Get,
+            arg: String::new(),
+        };
+        let result = task.parse::<String>();
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains(ERR_INVALID_COMMAND)
+        );
+    }
+
+    #[test]
+    fn parse_fails_on_invalid_base64() {
+        let task = Task::Hostname {
+            cmd: SubCommand::Get,
+            arg: "not-valid-base64!!!".to_string(),
+        };
+        let result = task.parse::<String>();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn parse_fails_on_invalid_bincode() {
+        // Valid base64 but invalid bincode for String type
+        let task = Task::Hostname {
+            cmd: SubCommand::Get,
+            arg: BASE64.encode(&[0xff, 0xff, 0xff, 0xff]),
+        };
+        let result = task.parse::<String>();
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("fail to parse argument")
+        );
+    }
+
+    #[test]
+    fn parse_fails_on_type_mismatch() {
+        // Encode a String but try to parse as Vec<String>
+        let task = Task::Ntp {
+            cmd: SubCommand::Set,
+            arg: encode_arg(&"single-string".to_string()),
+        };
+        let result = task.parse::<Vec<String>>();
+        assert!(result.is_err());
+    }
+
+    // Response encoding tests
+    //
+    // The response function serializes data via bincode and encodes to base64.
+    // The output can be decoded back to verify the encoding.
+
+    #[test]
+    fn response_encodes_string() {
+        let task = Task::Hostname {
+            cmd: SubCommand::Get,
+            arg: String::new(),
+        };
+        let result = response(&task, OKAY).expect("response should succeed");
+
+        let decoded_bytes = BASE64
+            .decode(result.as_bytes())
+            .expect("base64 decode should succeed");
+        let decoded: &str =
+            bincode::deserialize(&decoded_bytes).expect("bincode deserialize should succeed");
+        assert_eq!(decoded, OKAY);
+    }
+
+    #[test]
+    fn response_encodes_u16() {
+        let task = Task::Sshd {
+            cmd: SubCommand::Get,
+            arg: String::new(),
+        };
+        let port: u16 = 22;
+        let result = response(&task, port).expect("response should succeed");
+
+        let decoded_bytes = BASE64
+            .decode(result.as_bytes())
+            .expect("base64 decode should succeed");
+        let decoded: u16 =
+            bincode::deserialize(&decoded_bytes).expect("bincode deserialize should succeed");
+        assert_eq!(decoded, 22);
+    }
+
+    #[test]
+    fn response_encodes_bool() {
+        let task = Task::Ntp {
+            cmd: SubCommand::Status,
+            arg: String::new(),
+        };
+        let result = response(&task, true).expect("response should succeed");
+
+        let decoded_bytes = BASE64
+            .decode(result.as_bytes())
+            .expect("base64 decode should succeed");
+        let decoded: bool =
+            bincode::deserialize(&decoded_bytes).expect("bincode deserialize should succeed");
+        assert!(decoded);
+    }
+
+    #[test]
+    fn response_encodes_option_vec_string_none() {
+        let task = Task::Ntp {
+            cmd: SubCommand::Get,
+            arg: String::new(),
+        };
+        let value: Option<Vec<String>> = None;
+        let result = response(&task, value).expect("response should succeed");
+
+        let decoded_bytes = BASE64
+            .decode(result.as_bytes())
+            .expect("base64 decode should succeed");
+        let decoded: Option<Vec<String>> =
+            bincode::deserialize(&decoded_bytes).expect("bincode deserialize should succeed");
+        assert_eq!(decoded, None);
+    }
+
+    #[test]
+    fn response_encodes_option_vec_string_some() {
+        let task = Task::Ntp {
+            cmd: SubCommand::Get,
+            arg: String::new(),
+        };
+        let value: Option<Vec<String>> = Some(vec!["ntp1.example.com".to_string()]);
+        let result = response(&task, value).expect("response should succeed");
+
+        let decoded_bytes = BASE64
+            .decode(result.as_bytes())
+            .expect("base64 decode should succeed");
+        let decoded: Option<Vec<String>> =
+            bincode::deserialize(&decoded_bytes).expect("bincode deserialize should succeed");
+        assert_eq!(decoded, Some(vec!["ntp1.example.com".to_string()]));
+    }
+
+    #[test]
+    fn response_encodes_vec_tuple() {
+        let task = Task::Syslog {
+            cmd: SubCommand::Get,
+            arg: String::new(),
+        };
+        let value: Option<Vec<(String, String, String)>> = Some(vec![(
+            "local0".to_string(),
+            "tcp".to_string(),
+            "192.168.1.100:514".to_string(),
+        )]);
+        let result = response(&task, value).expect("response should succeed");
+
+        let decoded_bytes = BASE64
+            .decode(result.as_bytes())
+            .expect("base64 decode should succeed");
+        let decoded: Option<Vec<(String, String, String)>> =
+            bincode::deserialize(&decoded_bytes).expect("bincode deserialize should succeed");
+        assert_eq!(
+            decoded,
+            Some(vec![(
+                "local0".to_string(),
+                "tcp".to_string(),
+                "192.168.1.100:514".to_string()
+            )])
+        );
+    }
+
+    #[test]
+    fn response_encodes_interface_list() {
+        let task = Task::Interface {
+            cmd: SubCommand::List,
+            arg: String::new(),
+        };
+        let value = vec!["eth0".to_string(), "eth1".to_string(), "lo".to_string()];
+        let result = response(&task, value).expect("response should succeed");
+
+        let decoded_bytes = BASE64
+            .decode(result.as_bytes())
+            .expect("base64 decode should succeed");
+        let decoded: Vec<String> =
+            bincode::deserialize(&decoded_bytes).expect("bincode deserialize should succeed");
+        assert_eq!(decoded, vec!["eth0", "eth1", "lo"]);
+    }
+
+    #[test]
+    fn response_encodes_empty_vec() {
+        let task = Task::Interface {
+            cmd: SubCommand::List,
+            arg: String::new(),
+        };
+        let value: Vec<String> = vec![];
+        let result = response(&task, value).expect("response should succeed");
+
+        let decoded_bytes = BASE64
+            .decode(result.as_bytes())
+            .expect("base64 decode should succeed");
+        let decoded: Vec<String> =
+            bincode::deserialize(&decoded_bytes).expect("bincode deserialize should succeed");
+        assert!(decoded.is_empty());
+    }
+
+    // Serialization failure test
+    //
+    // The response function returns ERR_PARSE_FAIL when bincode serialization fails.
+    // This is difficult to trigger with normal types since bincode handles most cases.
+    // The ERR_MESSAGE_TOO_LONG branch requires a message > u32::MAX bytes, which is
+    // impractical to test without production changes to allow smaller limits.
+
+    #[test]
+    fn response_fails_on_unserializable_type() {
+        struct BadSerialize;
+
+        impl Serialize for BadSerialize {
+            fn serialize<S>(&self, _serializer: S) -> std::result::Result<S::Ok, S::Error>
+            where
+                S: serde::Serializer,
+            {
+                Err(serde::ser::Error::custom("intentional failure"))
+            }
+        }
+
+        let task = Task::Hostname {
+            cmd: SubCommand::Get,
+            arg: String::new(),
+        };
+        let result = response(&task, BadSerialize);
+        assert_eq!(result, Err(ERR_PARSE_FAIL));
+    }
+
+    // Execute tests
+    //
+    // Most execute() branches call OS-level functions (hostname::set, systemctl,
+    // file operations, reboot syscalls) that cannot be tested without production
+    // changes or mocking infrastructure. The following tests cover branches that
+    // return ERR_INVALID_COMMAND without side effects.
+
+    #[test]
+    fn execute_ufw_returns_invalid_command() {
+        // Ufw variant is defined but execute() has no handler, falling through to Err.
+        let task = Task::Ufw {
+            cmd: SubCommand::Get,
+            arg: String::new(),
+        };
+        let result = task.execute();
+        assert_eq!(result, Err(ERR_INVALID_COMMAND));
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    #[test]
+    fn execute_poweroff_returns_invalid_command_on_non_linux() {
+        // On non-Linux, PowerOff falls through to the default error branch.
+        let task = Task::PowerOff(String::new());
+        let result = task.execute();
+        assert_eq!(result, Err(ERR_INVALID_COMMAND));
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    #[test]
+    fn execute_reboot_returns_invalid_command_on_non_linux() {
+        // On non-Linux, Reboot falls through to the default error branch.
+        let task = Task::Reboot(String::new());
+        let result = task.execute();
+        assert_eq!(result, Err(ERR_INVALID_COMMAND));
+    }
+}
