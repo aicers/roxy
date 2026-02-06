@@ -190,4 +190,69 @@ mod tests {
         // Total: 100GB, Used: 45GB -> 45%
         assert_eq!(usage.disk_usage_percentage(), 45.0);
     }
+
+    #[test]
+    #[allow(clippy::float_cmp)]
+    fn test_disk_usage_percentage_full_disk() {
+        // available == 0 means disk is fully used
+        let usage = ResourceUsage {
+            cpu_usage: 0.0,
+            total_memory: 0,
+            used_memory: 0,
+            disk_used_bytes: 100_000_000_000,
+            disk_available_bytes: 0,
+        };
+
+        assert_eq!(usage.disk_usage_percentage(), 100.0);
+    }
+
+    #[test]
+    fn test_disk_usage_percentage_large_values() {
+        // Use large values near u64::MAX / 2 to verify no overflow in arithmetic
+        let usage = ResourceUsage {
+            cpu_usage: 0.0,
+            total_memory: 0,
+            used_memory: 0,
+            disk_used_bytes: u64::MAX / 2,
+            disk_available_bytes: u64::MAX / 2,
+        };
+
+        let pct = usage.disk_usage_percentage();
+        // With equal used and available, percentage should be ~50%
+        assert!((pct - 50.0).abs() < 1.0, "expected ~50%, got {pct}");
+    }
+
+    #[test]
+    fn test_disk_usage_percentage_fractional() {
+        // 1 byte used, 3 bytes available => 25% (1 / 4 * 100)
+        let usage = ResourceUsage {
+            cpu_usage: 0.0,
+            total_memory: 0,
+            used_memory: 0,
+            disk_used_bytes: 1,
+            disk_available_bytes: 3,
+        };
+
+        let pct = usage.disk_usage_percentage();
+        assert!((pct - 25.0).abs() < 0.001, "expected 25%, got {pct}");
+    }
+
+    #[test]
+    fn test_disk_usage_percentage_non_round_fraction() {
+        // 1 byte used, 2 bytes available => 33.33...% (1 / 3 * 100)
+        let usage = ResourceUsage {
+            cpu_usage: 0.0,
+            total_memory: 0,
+            used_memory: 0,
+            disk_used_bytes: 1,
+            disk_available_bytes: 2,
+        };
+
+        let pct = usage.disk_usage_percentage();
+        let expected = 100.0 / 3.0;
+        assert!(
+            (pct - expected).abs() < 0.01,
+            "expected ~{expected}%, got {pct}"
+        );
+    }
 }
