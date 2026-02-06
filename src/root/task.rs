@@ -448,7 +448,10 @@ mod tests {
 
     #[test]
     fn parse_decodes_vec_string_arg() {
-        let value = vec!["server1.example.com".to_string(), "server2.example.com".to_string()];
+        let value = vec![
+            "server1.example.com".to_string(),
+            "server2.example.com".to_string(),
+        ];
         let task = Task::Ntp {
             cmd: SubCommand::Set,
             arg: encode_arg(&value),
@@ -498,7 +501,10 @@ mod tests {
 
         let parsed: (String, NicOutput) = task.parse().expect("parse should succeed");
         assert_eq!(parsed.0, "eth0");
-        assert_eq!(parsed.1.addresses, Some(vec!["192.168.1.100/24".to_string()]));
+        assert_eq!(
+            parsed.1.addresses,
+            Some(vec!["192.168.1.100/24".to_string()])
+        );
         assert_eq!(parsed.1.dhcp4, Some(false));
         assert_eq!(parsed.1.gateway4, Some("192.168.1.1".to_string()));
         assert_eq!(parsed.1.nameservers, Some(vec!["8.8.8.8".to_string()]));
@@ -553,7 +559,9 @@ mod tests {
         ];
 
         for task in tasks {
-            let parsed: String = task.parse().expect("parse should succeed for supported variant");
+            let parsed: String = task
+                .parse()
+                .expect("parse should succeed for supported variant");
             assert_eq!(parsed, "test");
         }
     }
@@ -568,7 +576,12 @@ mod tests {
         let task = Task::PowerOff(String::new());
         let result = task.parse::<String>();
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains(ERR_INVALID_COMMAND));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains(ERR_INVALID_COMMAND)
+        );
     }
 
     #[test]
@@ -576,7 +589,12 @@ mod tests {
         let task = Task::Reboot(String::new());
         let result = task.parse::<String>();
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains(ERR_INVALID_COMMAND));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains(ERR_INVALID_COMMAND)
+        );
     }
 
     #[test]
@@ -584,7 +602,12 @@ mod tests {
         let task = Task::GracefulReboot(String::new());
         let result = task.parse::<String>();
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains(ERR_INVALID_COMMAND));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains(ERR_INVALID_COMMAND)
+        );
     }
 
     #[test]
@@ -592,7 +615,12 @@ mod tests {
         let task = Task::GracefulPowerOff(String::new());
         let result = task.parse::<String>();
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains(ERR_INVALID_COMMAND));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains(ERR_INVALID_COMMAND)
+        );
     }
 
     #[test]
@@ -603,7 +631,12 @@ mod tests {
         };
         let result = task.parse::<String>();
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains(ERR_INVALID_COMMAND));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains(ERR_INVALID_COMMAND)
+        );
     }
 
     #[test]
@@ -625,7 +658,12 @@ mod tests {
         };
         let result = task.parse::<String>();
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("fail to parse argument"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("fail to parse argument")
+        );
     }
 
     #[test]
@@ -652,8 +690,11 @@ mod tests {
         };
         let result = response(&task, OKAY).expect("response should succeed");
 
-        let decoded_bytes = BASE64.decode(result.as_bytes()).expect("base64 decode should succeed");
-        let decoded: &str = bincode::deserialize(&decoded_bytes).expect("bincode deserialize should succeed");
+        let decoded_bytes = BASE64
+            .decode(result.as_bytes())
+            .expect("base64 decode should succeed");
+        let decoded: &str =
+            bincode::deserialize(&decoded_bytes).expect("bincode deserialize should succeed");
         assert_eq!(decoded, OKAY);
     }
 
@@ -666,8 +707,11 @@ mod tests {
         let port: u16 = 22;
         let result = response(&task, port).expect("response should succeed");
 
-        let decoded_bytes = BASE64.decode(result.as_bytes()).expect("base64 decode should succeed");
-        let decoded: u16 = bincode::deserialize(&decoded_bytes).expect("bincode deserialize should succeed");
+        let decoded_bytes = BASE64
+            .decode(result.as_bytes())
+            .expect("base64 decode should succeed");
+        let decoded: u16 =
+            bincode::deserialize(&decoded_bytes).expect("bincode deserialize should succeed");
         assert_eq!(decoded, 22);
     }
 
@@ -679,8 +723,11 @@ mod tests {
         };
         let result = response(&task, true).expect("response should succeed");
 
-        let decoded_bytes = BASE64.decode(result.as_bytes()).expect("base64 decode should succeed");
-        let decoded: bool = bincode::deserialize(&decoded_bytes).expect("bincode deserialize should succeed");
+        let decoded_bytes = BASE64
+            .decode(result.as_bytes())
+            .expect("base64 decode should succeed");
+        let decoded: bool =
+            bincode::deserialize(&decoded_bytes).expect("bincode deserialize should succeed");
         assert!(decoded);
     }
 
@@ -693,7 +740,9 @@ mod tests {
         let value: Option<Vec<String>> = None;
         let result = response(&task, value).expect("response should succeed");
 
-        let decoded_bytes = BASE64.decode(result.as_bytes()).expect("base64 decode should succeed");
+        let decoded_bytes = BASE64
+            .decode(result.as_bytes())
+            .expect("base64 decode should succeed");
         let decoded: Option<Vec<String>> =
             bincode::deserialize(&decoded_bytes).expect("bincode deserialize should succeed");
         assert_eq!(decoded, None);
@@ -708,7 +757,9 @@ mod tests {
         let value: Option<Vec<String>> = Some(vec!["ntp1.example.com".to_string()]);
         let result = response(&task, value).expect("response should succeed");
 
-        let decoded_bytes = BASE64.decode(result.as_bytes()).expect("base64 decode should succeed");
+        let decoded_bytes = BASE64
+            .decode(result.as_bytes())
+            .expect("base64 decode should succeed");
         let decoded: Option<Vec<String>> =
             bincode::deserialize(&decoded_bytes).expect("bincode deserialize should succeed");
         assert_eq!(decoded, Some(vec!["ntp1.example.com".to_string()]));
@@ -727,12 +778,18 @@ mod tests {
         )]);
         let result = response(&task, value).expect("response should succeed");
 
-        let decoded_bytes = BASE64.decode(result.as_bytes()).expect("base64 decode should succeed");
+        let decoded_bytes = BASE64
+            .decode(result.as_bytes())
+            .expect("base64 decode should succeed");
         let decoded: Option<Vec<(String, String, String)>> =
             bincode::deserialize(&decoded_bytes).expect("bincode deserialize should succeed");
         assert_eq!(
             decoded,
-            Some(vec![("local0".to_string(), "tcp".to_string(), "192.168.1.100:514".to_string())])
+            Some(vec![(
+                "local0".to_string(),
+                "tcp".to_string(),
+                "192.168.1.100:514".to_string()
+            )])
         );
     }
 
@@ -745,7 +802,9 @@ mod tests {
         let value = vec!["eth0".to_string(), "eth1".to_string(), "lo".to_string()];
         let result = response(&task, value).expect("response should succeed");
 
-        let decoded_bytes = BASE64.decode(result.as_bytes()).expect("base64 decode should succeed");
+        let decoded_bytes = BASE64
+            .decode(result.as_bytes())
+            .expect("base64 decode should succeed");
         let decoded: Vec<String> =
             bincode::deserialize(&decoded_bytes).expect("bincode deserialize should succeed");
         assert_eq!(decoded, vec!["eth0", "eth1", "lo"]);
@@ -760,7 +819,9 @@ mod tests {
         let value: Vec<String> = vec![];
         let result = response(&task, value).expect("response should succeed");
 
-        let decoded_bytes = BASE64.decode(result.as_bytes()).expect("base64 decode should succeed");
+        let decoded_bytes = BASE64
+            .decode(result.as_bytes())
+            .expect("base64 decode should succeed");
         let decoded: Vec<String> =
             bincode::deserialize(&decoded_bytes).expect("bincode deserialize should succeed");
         assert!(decoded.is_empty());
