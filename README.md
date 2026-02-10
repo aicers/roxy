@@ -108,31 +108,23 @@ authentication.
 ### Running roxyd
 
 ```sh
-cargo run --bin roxyd -- --config path/to/config.toml
+cargo run --bin roxyd -- -c path/to/config.toml \
+  --cert path/to/cert.pem \
+  --key path/to/key.pem --ca-certs path/to/ca.pem \
+  manager@192.168.1.100:4433
 ```
 
 ### Configuration
 
-Create a TOML configuration file with the following structure:
+Create a TOML configuration file with the following structure.
 
 ```toml
-# Address of the Manager to connect to
-manager_address = "192.168.1.100:4433"
-
-# QUIC transport configuration
-[quic]
-bind_address = "0.0.0.0:0"       # Local bind address
-idle_timeout_ms = 30000          # Connection idle timeout in ms
-
-# mTLS certificate configuration
-[mtls]
-cert_path = "/etc/roxyd/cert.pem"     # Client certificate
-key_path = "/etc/roxyd/key.pem"       # Private key
-ca_cert_path = "/etc/roxyd/ca.pem"    # CA certificate for Manager verification
+# Path to the log file. If omitted, logs go to stdout.
+log_path = "/opt/clumit/log/roxyd.log"
 ```
 
-All configuration fields are required. Configuration can also be overridden
-using environment variables prefixed with `ROXYD_` (e.g., `ROXYD_MANAGER_ADDRESS`).
+Configuration can also be overridden using environment variables with the
+`ROXYD_` prefix (e.g., `ROXYD_LOG_PATH`).
 
 ## License
 
