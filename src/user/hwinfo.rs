@@ -103,10 +103,6 @@ mod tests {
         (os_version, product_version)
     }
 
-    // =========================================================================
-    // Tests for OS version parsing
-    // =========================================================================
-
     #[test]
     fn parse_os_version_full() {
         let content = "OS: Ubuntu 22.04 LTS\nProduct: 1.0.0";
@@ -137,15 +133,10 @@ mod tests {
 
     #[test]
     fn parse_os_version_with_colon_in_value() {
-        // Tests that only the first colon is used as delimiter
         let content = "OS: Ubuntu: Special Edition\nProduct: 1.0.0";
         let (os, _) = parse_version_content(content);
         assert_eq!(os, "Ubuntu: Special Edition");
     }
-
-    // =========================================================================
-    // Tests for Product version parsing
-    // =========================================================================
 
     #[test]
     fn parse_product_version_full() {
@@ -182,10 +173,6 @@ mod tests {
         assert_eq!(product, "v1.0:beta");
     }
 
-    // =========================================================================
-    // Tests for combined/edge case scenarios
-    // =========================================================================
-
     #[test]
     fn parse_version_content_empty_string() {
         let content = "";
@@ -204,7 +191,6 @@ mod tests {
 
     #[test]
     fn parse_version_content_reversed_order() {
-        // Product line appears before OS line
         let content = "Product: 1.2.3\nOS: Fedora 35";
         let (os, product) = parse_version_content(content);
         assert_eq!(os, "Fedora 35");
@@ -230,7 +216,6 @@ mod tests {
 
     #[test]
     fn parse_version_content_malformed_lines_without_colon() {
-        // Lines without colons should be skipped
         let content = "OS Ubuntu\nProduct 1.0.0";
         let (os, product) = parse_version_content(content);
         assert_eq!(os, DEFAULT_VERSION_STRING);
@@ -239,7 +224,6 @@ mod tests {
 
     #[test]
     fn parse_version_content_case_sensitivity() {
-        // Parser is case-sensitive: "os:" should not match "OS:"
         let content = "os: lowercase\nproduct: 1.0.0";
         let (os, product) = parse_version_content(content);
         assert_eq!(os, DEFAULT_VERSION_STRING);
@@ -248,7 +232,6 @@ mod tests {
 
     #[test]
     fn parse_version_content_duplicate_os_lines() {
-        // When multiple OS lines exist, the last one wins
         let content = "OS: First\nOS: Second\nProduct: 1.0.0";
         let (os, _) = parse_version_content(content);
         assert_eq!(os, "Second");
@@ -256,7 +239,6 @@ mod tests {
 
     #[test]
     fn parse_version_content_duplicate_product_lines() {
-        // When multiple Product lines exist, the last one wins
         let content = "OS: Ubuntu\nProduct: 1.0.0\nProduct: 2.0.0";
         let (_, product) = parse_version_content(content);
         assert_eq!(product, "2.0.0");
@@ -264,7 +246,6 @@ mod tests {
 
     #[test]
     fn parse_version_content_partial_prefix_not_matched() {
-        // "OSX:" should not match "OS:"
         let content = "OSX: macOS 12\nProductVersion: 1.0.0";
         let (os, product) = parse_version_content(content);
         assert_eq!(os, DEFAULT_VERSION_STRING);
@@ -303,29 +284,8 @@ mod tests {
         assert_eq!(product, "1.0.0");
     }
 
-    // =========================================================================
-    // Tests for default constant value
-    // =========================================================================
-
     #[test]
     fn default_version_string_value() {
         assert_eq!(DEFAULT_VERSION_STRING, "AICE security");
     }
-
-    // =========================================================================
-    // Note on branches that cannot be covered without production changes:
-    //
-    // The following branches in `version()` cannot be tested without modifying
-    // production code because they depend on filesystem operations with a
-    // hard-coded path (/etc/version):
-    //
-    // 1. File::open() failure branch - requires file to not exist or be
-    //    inaccessible at /etc/version
-    // 2. file.read_to_string() failure branch - requires I/O error during read
-    //
-    // These branches return the default values (DEFAULT_VERSION_STRING) which
-    // is the same behavior tested in parse_version_content_empty_string and
-    // other "missing" tests above. The parsing logic itself is fully covered
-    // through the test helper function.
-    // =========================================================================
 }
