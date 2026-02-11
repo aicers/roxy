@@ -90,7 +90,7 @@ async fn main() -> Result<()> {
 fn run() -> Result<()> {
     let args = Args::parse();
     let config = Config::load(&args.config)?;
-    let settings = Settings::from_args(&args, config);
+    let settings = Settings::from_args(&args, config)?;
     let _guard = init_tracing(settings.log_path())?;
 
     tracing::info!("Loaded config from: {:?}", args.config);

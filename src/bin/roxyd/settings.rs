@@ -2,9 +2,12 @@
 //!
 //! This module consolidates CLI argument parsing and TOML configuration loading.
 
-use std::path::{Path, PathBuf};
+use std::{
+    net::SocketAddr,
+    path::{Path, PathBuf},
+};
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use clap::Parser;
 use config::Config as RawConfig;
 use serde::Deserialize;
@@ -79,14 +82,26 @@ pub struct Settings {
 }
 
 impl Settings {
-    pub fn from_args(args: &Args, config: Config) -> Self {
-        Self {
+    pub fn from_args(args: &Args, config: Config) -> Result<Self> {
+        let (server_name, server_addr) = args.manager_server.split_once('@').context(
+            "manager_server must be in the form <server_name>@<server_ip>:<server_port>",
+        )?;
+
+        if server_name.is_empty() {
+            bail!("manager_server must include a non-empty server name before '@'");
+        }
+
+        server_addr
+            .parse::<SocketAddr>()
+            .context("manager_server must include a valid <server_ip>:<server_port> after '@'")?;
+
+        Ok(Self {
             manager_server: args.manager_server.clone(),
             cert: args.cert.clone(),
             key: args.key.clone(),
             ca_certs: args.ca_certs.clone(),
             config,
-        }
+        })
     }
 
     pub fn log_path(&self) -> Option<&std::path::Path> {
@@ -105,7 +120,7 @@ mod tests {
 
     use tempfile::{Builder, NamedTempFile, tempdir};
 
-    use super::Config;
+    use super::{Args, Config, Settings};
 
     const LOG_PATH_ENV_KEY: &str = "ROXYD_LOG_PATH";
 
@@ -215,6 +230,69 @@ mod tests {
             Config::load(file.path()).expect_err("Expected load to fail for invalid value type");
         assert!(
             err.to_string().contains("Failed to parse config"),
+            "Unexpected error message: {err}"
+        );
+    }
+
+    fn sample_args(manager_server: &str) -> Args {
+        Args {
+            config: PathBuf::from("config.toml"),
+            cert: PathBuf::from("cert.pem"),
+            key: PathBuf::from("key.pem"),
+            ca_certs: vec![PathBuf::from("ca.pem")],
+            manager_server: manager_server.to_string(),
+        }
+    }
+
+    #[test]
+    fn from_args_accepts_valid_manager_server() {
+        let args = sample_args("manager@127.0.0.1:4433");
+        let settings = Settings::from_args(
+            &args,
+            Config {
+                log_path: Some(PathBuf::from("/tmp/roxyd.log")),
+            },
+        )
+        .expect("Expected valid manager_server to pass validation");
+
+        assert_eq!(settings.manager_server, "manager@127.0.0.1:4433");
+    }
+
+    #[test]
+    fn from_args_rejects_missing_separator() {
+        let args = sample_args("manager-127.0.0.1:4433");
+        let err = Settings::from_args(&args, Config { log_path: None })
+            .expect_err("Expected validation to fail when '@' is missing");
+
+        assert!(
+            err.to_string()
+                .contains("manager_server must be in the form"),
+            "Unexpected error message: {err}"
+        );
+    }
+
+    #[test]
+    fn from_args_rejects_invalid_socket_addr() {
+        let args = sample_args("manager@not-an-ip:4433");
+        let err = Settings::from_args(&args, Config { log_path: None })
+            .expect_err("Expected validation to fail for invalid socket address");
+
+        assert!(
+            err.to_string()
+                .contains("manager_server must include a valid"),
+            "Unexpected error message: {err}"
+        );
+    }
+
+    #[test]
+    fn from_args_rejects_empty_server_name() {
+        let args = sample_args("@127.0.0.1:4433");
+        let err = Settings::from_args(&args, Config { log_path: None })
+            .expect_err("Expected validation to fail for empty server name");
+
+        assert!(
+            err.to_string()
+                .contains("manager_server must include a non-empty server name"),
             "Unexpected error message: {err}"
         );
     }
