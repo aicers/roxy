@@ -93,6 +93,39 @@ Roxy is a root proxy that executes a system command requiring the root privilege
       instead of **systemctl**
     - **systemctl** did not detect ufw status exactly
 
+## roxyd (experimental)
+
+`roxyd` is a new implementation path that coexists with the legacy `roxy`
+binary. It is designed to connect to the Manager via QUIC with mTLS
+authentication.
+
+**Important notes:**
+
+- This is currently a skeleton implementation with no protocol handlers active.
+- Existing legacy code **must not** be removed while legacy mode is still in use.
+- Current limitations: skeleton only; no review-protocol request handling yet.
+
+### Running roxyd
+
+```sh
+cargo run --bin roxyd -- -c path/to/config.toml \
+  --cert path/to/cert.pem \
+  --key path/to/key.pem --ca-certs path/to/ca.pem \
+  manager@192.168.1.100:4433
+```
+
+### Configuration
+
+Create a TOML configuration file with the following structure.
+
+```toml
+# Path to the log file. If omitted, logs go to stdout.
+log_path = "/opt/clumit/log/roxyd.log"
+```
+
+Configuration can also be overridden using environment variables with the
+`ROXYD_` prefix (e.g., `ROXYD_LOG_PATH`).
+
 ## License
 
 Copyright 2022-2024 ClumL Inc.
