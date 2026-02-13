@@ -63,3 +63,105 @@ pub async fn process_list() -> Vec<Process> {
 
     processes
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_json_roundtrip() {
+        let process = Process {
+            user: "testuser".to_string(),
+            cpu_usage: 25.5,
+            mem_usage: 12.34,
+            start_time: 1_700_000_000_000_000_000,
+            command: "test_command".to_string(),
+        };
+
+        let serialized = serde_json::to_string(&process).expect("serialize");
+        let deserialized: Process = serde_json::from_str(&serialized).expect("deserialize");
+
+        assert_eq!(deserialized.user, process.user);
+        assert!((deserialized.cpu_usage - process.cpu_usage).abs() < f32::EPSILON);
+        assert!((deserialized.mem_usage - process.mem_usage).abs() < f64::EPSILON);
+        assert_eq!(deserialized.start_time, process.start_time);
+        assert_eq!(deserialized.command, process.command);
+    }
+
+    #[test]
+    fn test_bincode_roundtrip() {
+        let process = Process {
+            user: "root".to_string(),
+            cpu_usage: 0.0,
+            mem_usage: 50.0,
+            start_time: 0,
+            command: "init".to_string(),
+        };
+
+        let encoded = bincode::serialize(&process).expect("serialize");
+        let decoded: Process = bincode::deserialize(&encoded).expect("deserialize");
+
+        assert_eq!(decoded.user, process.user);
+        assert!((decoded.cpu_usage - process.cpu_usage).abs() < f32::EPSILON);
+        assert!((decoded.mem_usage - process.mem_usage).abs() < f64::EPSILON);
+        assert_eq!(decoded.start_time, process.start_time);
+        assert_eq!(decoded.command, process.command);
+    }
+
+    #[test]
+    fn test_json_roundtrip_with_special_characters() {
+        let process = Process {
+            user: "test-user".to_string(),
+            cpu_usage: 10.5,
+            mem_usage: 5.25,
+            start_time: 1_000_000_000_000_000_000,
+            command: "[kworker/0:1-events]".to_string(),
+        };
+
+        let serialized = serde_json::to_string(&process).expect("serialize");
+        let deserialized: Process = serde_json::from_str(&serialized).expect("deserialize");
+
+        assert_eq!(deserialized.user, "test-user");
+        assert_eq!(deserialized.command, "[kworker/0:1-events]");
+    }
+
+    #[test]
+    fn test_json_roundtrip_with_empty_strings() {
+        let process = Process {
+            user: String::new(),
+            cpu_usage: 0.0,
+            mem_usage: 0.0,
+            start_time: 0,
+            command: String::new(),
+        };
+
+        let serialized = serde_json::to_string(&process).expect("serialize");
+        let deserialized: Process = serde_json::from_str(&serialized).expect("deserialize");
+
+        assert!(deserialized.user.is_empty());
+        assert!(deserialized.command.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_process_list_fields_are_populated() {
+        let processes = process_list().await;
+        assert!(!processes.is_empty());
+
+        for process in &processes {
+            assert!(!process.command.is_empty());
+            assert!(process.cpu_usage >= 0.0);
+            assert!(process.mem_usage >= 0.0);
+            assert!(process.start_time >= 0);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_process_list_mem_usage_is_percentage_like() {
+        let processes = process_list().await;
+        assert!(!processes.is_empty());
+
+        for process in &processes {
+            assert!(process.mem_usage <= 100.0);
+        }
+    }
+}
