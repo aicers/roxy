@@ -17,6 +17,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   Connection details (Manager address, cert/key, CA certs) are provided via CLI
   arguments. Log output configuration can be overridden using `ROXYD_LOG_PATH`.
 
+### Fixed
+
+- Hardened arithmetic in `src/user/usg.rs` against overflow/underflow to ensure
+  deterministic behavior across debug and release builds. Disk usage percentage
+  calculation now uses `saturating_add`, subtraction uses `saturating_sub`, and
+  multiplication uses wide u128 intermediate with clamping.
+
 ## [0.5.1] - 2025-11-26
 
 ### Changed
