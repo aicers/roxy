@@ -133,61 +133,90 @@ pub async fn resource_usage() -> ResourceUsage {
 mod tests {
     use super::*;
 
+    fn resource_usage_with_disk(disk_used_bytes: u64, disk_available_bytes: u64) -> ResourceUsage {
+        ResourceUsage {
+            cpu_usage: 0.0,
+            total_memory: 0,
+            used_memory: 0,
+            disk_used_bytes,
+            disk_available_bytes,
+        }
+    }
+
+    fn assert_percentage_close(actual: f32, expected: f32, epsilon: f32) {
+        assert!((actual - expected).abs() <= epsilon);
+    }
+
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
     #[test]
-    #[allow(clippy::float_cmp)]
+    fn test_get_disk_usage_root_mount() {
+        let (used, available) =
+            get_disk_usage(Path::new("/")).expect("failed to get disk usage for root mount");
+        assert!(used.saturating_add(available) > 0);
+    }
+
+    #[test]
+    fn test_get_disk_usage_missing_mount_point() {
+        let missing_mount = Path::new("/__roxy_test_missing_mount_point__");
+        assert!(get_disk_usage(missing_mount).is_err());
+    }
+
+    #[test]
     fn test_disk_usage_percentage() {
-        let usage = ResourceUsage {
-            cpu_usage: 0.0,
-            total_memory: 0,
-            used_memory: 0,
-            disk_used_bytes: 80_000_000_000,      // 80GB used
-            disk_available_bytes: 20_000_000_000, // 20GB available
-        };
-
-        // Total: 100GB, Used: 80GB -> 80%
-        assert_eq!(usage.disk_usage_percentage(), 80.0);
+        let usage = resource_usage_with_disk(80_000_000_000, 20_000_000_000);
+        assert_percentage_close(usage.disk_usage_percentage(), 80.0, 0.000_1);
     }
 
     #[test]
-    #[allow(clippy::float_cmp)]
     fn test_disk_usage_percentage_zero_disk() {
-        let usage = ResourceUsage {
-            cpu_usage: 0.0,
-            total_memory: 0,
-            used_memory: 0,
-            disk_used_bytes: 0,
-            disk_available_bytes: 0,
-        };
-
-        assert_eq!(usage.disk_usage_percentage(), 0.0);
+        let usage = resource_usage_with_disk(0, 0);
+        assert_percentage_close(usage.disk_usage_percentage(), 0.0, 0.0);
     }
 
     #[test]
-    #[allow(clippy::float_cmp)]
     fn test_disk_usage_percentage_no_used_space() {
-        let usage = ResourceUsage {
-            cpu_usage: 0.0,
-            total_memory: 0,
-            used_memory: 0,
-            disk_used_bytes: 0,
-            disk_available_bytes: 100_000_000_000, // 100GB available
-        };
-
-        assert_eq!(usage.disk_usage_percentage(), 0.0);
+        let usage = resource_usage_with_disk(0, 100_000_000_000);
+        assert_percentage_close(usage.disk_usage_percentage(), 0.0, 0.0);
     }
 
     #[test]
-    #[allow(clippy::float_cmp)]
-    fn test_disk_usage_percentage_realistic_values() {
-        let usage = ResourceUsage {
-            cpu_usage: 0.0,
-            total_memory: 0,
-            used_memory: 0,
-            disk_used_bytes: 45_000_000_000,      // 45GB used
-            disk_available_bytes: 55_000_000_000, // 55GB available
-        };
+    fn test_disk_usage_percentage_full_disk() {
+        let usage = resource_usage_with_disk(100_000_000_000, 0);
+        assert_percentage_close(usage.disk_usage_percentage(), 100.0, 0.000_1);
+    }
 
-        // Total: 100GB, Used: 45GB -> 45%
-        assert_eq!(usage.disk_usage_percentage(), 45.0);
+    #[test]
+    fn test_disk_usage_percentage_large_symmetric_values() {
+        let usage = resource_usage_with_disk(u64::MAX / 2, u64::MAX / 2);
+        assert_percentage_close(usage.disk_usage_percentage(), 50.0, 0.001);
+    }
+
+    #[test]
+    fn test_disk_usage_percentage_fractional() {
+        let usage = resource_usage_with_disk(1, 3);
+        assert_percentage_close(usage.disk_usage_percentage(), 25.0, 0.001);
+    }
+
+    #[test]
+    fn test_disk_usage_percentage_non_round_fraction() {
+        let usage = resource_usage_with_disk(1, 2);
+        assert_percentage_close(usage.disk_usage_percentage(), 100.0 / 3.0, 0.01);
+    }
+
+    #[test]
+    fn test_disk_usage_percentage_near_max_total() {
+        let usage = resource_usage_with_disk(u64::MAX - 1, 1);
+        assert_percentage_close(usage.disk_usage_percentage(), 100.0, 0.001);
+    }
+
+    #[tokio::test]
+    async fn test_resource_usage_smoke() {
+        let usage = resource_usage().await;
+        assert!(usage.cpu_usage.is_finite());
+        assert!(usage.cpu_usage >= 0.0);
+        assert!(usage.cpu_usage <= 100.0);
+        assert!(usage.used_memory <= usage.total_memory);
+        assert!(usage.disk_usage_percentage().is_finite());
+        assert!((0.0..=100.0).contains(&usage.disk_usage_percentage()));
     }
 }
