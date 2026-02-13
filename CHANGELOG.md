@@ -4,6 +4,15 @@ This file documents recent notable changes to this project. The format of this
 file is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Hardened arithmetic in `src/user/usg.rs` against overflow/underflow to ensure
+  deterministic behavior across debug and release builds. Disk usage percentage
+  calculation now uses `saturating_add`, subtraction uses `saturating_sub`, and
+  multiplication uses wide u128 intermediate with clamping.
+
 ## [0.5.1] - 2025-11-26
 
 ### Changed
@@ -86,6 +95,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - Initial release.
 
+[Unreleased]: https://github.com/aicers/roxy/compare/0.5.1...main
 [0.5.1]: https://github.com/aicers/roxy/compare/0.5.0...0.5.1
 [0.5.0]: https://github.com/aicers/roxy/compare/0.4.0...0.5.0
 [0.4.0]: https://github.com/aicers/roxy/compare/0.3.0...0.4.0
