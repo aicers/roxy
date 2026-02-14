@@ -460,7 +460,7 @@ pub fn get_ntp() -> Result<Option<Vec<String>>> {
 /// * Return error if it fails to build request message
 /// * Return error if `run_roxy` function returns error
 pub fn set_ntp(servers: Vec<String>) -> Result<bool> {
-    if let Ok(req) = NodeRequest::new::<Vec<String>>(Node::Ntp(SubCommand::Get), servers) {
+    if let Ok(req) = NodeRequest::new::<Vec<String>>(Node::Ntp(SubCommand::Set), servers) {
         run_roxy::<bool>(req)
     } else {
         Err(anyhow!(FAIL_REQUEST))
