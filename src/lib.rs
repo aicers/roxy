@@ -1,11 +1,13 @@
 pub mod common;
 mod user;
 
+#[cfg(not(test))]
 use std::process::{Command, Stdio};
 
 use anyhow::{Result, anyhow};
 pub use common::waitfor_up;
 use common::{NicOutput, Node, NodeRequest, SubCommand};
+#[cfg(not(test))]
 use data_encoding::BASE64;
 use serde::Deserialize;
 pub use user::hwinfo::{uptime, version};
@@ -515,6 +517,7 @@ pub enum TaskResult {
 /// # Panics
 ///
 /// * panic if it failed to convert request message to json
+#[cfg(not(test))]
 pub fn run_roxy<T>(req: NodeRequest) -> Result<T>
 where
     T: serde::de::DeserializeOwned,
@@ -543,5 +546,478 @@ where
         }
         Ok(TaskResult::Err(x)) => Err(anyhow!("{x}")),
         Err(e) => Err(anyhow!("fail to parse response. {e}")),
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::missing_errors_doc)]
+pub fn run_roxy<T>(req: NodeRequest) -> Result<T>
+where
+    T: serde::de::DeserializeOwned,
+{
+    test_support::handle_request(req)
+}
+
+#[cfg(test)]
+mod test_support {
+    use std::sync::{Mutex, OnceLock, PoisonError};
+
+    use serde::Serialize;
+
+    use super::*;
+
+    enum StubResponse {
+        Ok(Vec<u8>),
+        Err(String),
+    }
+
+    struct StubState {
+        last_request: Option<NodeRequest>,
+        next_response: Option<StubResponse>,
+    }
+
+    fn state() -> &'static Mutex<StubState> {
+        static STATE: OnceLock<Mutex<StubState>> = OnceLock::new();
+        STATE.get_or_init(|| {
+            Mutex::new(StubState {
+                last_request: None,
+                next_response: None,
+            })
+        })
+    }
+
+    pub fn lock() -> std::sync::MutexGuard<'static, ()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+    }
+
+    pub fn reset() {
+        let mut state = state().lock().expect("stub state");
+        state.last_request = None;
+        state.next_response = None;
+    }
+
+    pub fn set_ok_response<T: Serialize>(value: &T) {
+        let bytes = bincode::serialize(value).expect("serialize test response");
+        let mut state = state().lock().expect("stub state");
+        state.next_response = Some(StubResponse::Ok(bytes));
+    }
+
+    pub fn set_err_response(message: &str) {
+        let mut state = state().lock().expect("stub state");
+        state.next_response = Some(StubResponse::Err(message.to_string()));
+    }
+
+    pub fn take_last_request() -> Option<NodeRequest> {
+        let mut state = state().lock().expect("stub state");
+        state.last_request.take()
+    }
+
+    pub fn handle_request<T: serde::de::DeserializeOwned>(req: NodeRequest) -> Result<T> {
+        let mut state = state().lock().expect("stub state");
+        state.last_request = Some(req);
+        match state.next_response.take() {
+            Some(StubResponse::Ok(bytes)) => {
+                bincode::deserialize::<T>(&bytes).map_err(|e| anyhow!("{e}"))
+            }
+            Some(StubResponse::Err(message)) => Err(anyhow!("{message}")),
+            None => Err(anyhow!("missing test response")),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::MutexGuard;
+
+    use serde::Serialize;
+
+    use super::test_support;
+    use super::*;
+
+    struct TestCtx {
+        guard: MutexGuard<'static, ()>,
+    }
+
+    impl TestCtx {
+        fn new() -> Self {
+            let guard = test_support::lock();
+            test_support::reset();
+            Self { guard }
+        }
+
+        fn request(self) -> NodeRequest {
+            let _guard = self.guard;
+            test_support::take_last_request().expect("request should be captured")
+        }
+    }
+
+    fn set_ok<T: Serialize>(value: &T) {
+        test_support::set_ok_response(value);
+    }
+
+    fn set_err(message: &str) {
+        test_support::set_err_response(message);
+    }
+
+    fn assert_none_arg(req: &NodeRequest) {
+        let decoded: Option<String> = bincode::deserialize(&req.arg).expect("arg should decode");
+        assert_eq!(decoded, None);
+    }
+
+    #[test]
+    fn test_hostname_returns_non_empty() {
+        let hostname = hostname();
+        assert!(!hostname.is_empty());
+    }
+
+    #[test]
+    fn test_service_control_builds_request() {
+        let ctx = TestCtx::new();
+        set_ok(&true);
+
+        let result = service_control(SubCommand::Status, "nginx".to_string())
+            .expect("service_control should succeed");
+        assert!(result);
+
+        let req = ctx.request();
+        assert_eq!(req.kind, Node::Service(SubCommand::Status));
+        let decoded: String = bincode::deserialize(&req.arg).expect("arg should decode");
+        assert_eq!(decoded, "nginx");
+    }
+
+    #[test]
+    fn test_set_os_version_builds_request() {
+        let ctx = TestCtx::new();
+        set_ok(&"ok".to_string());
+
+        let result = set_os_version("24.04".to_string()).expect("set_os_version should succeed");
+        assert_eq!(result, "ok");
+
+        let req = ctx.request();
+        assert_eq!(req.kind, Node::Version(SubCommand::SetOsVersion));
+        let decoded: String = bincode::deserialize(&req.arg).expect("arg should decode");
+        assert_eq!(decoded, "24.04");
+    }
+
+    #[test]
+    fn test_set_product_version_builds_request() {
+        let ctx = TestCtx::new();
+        set_ok(&"ok".to_string());
+
+        let result =
+            set_product_version("1.2.3".to_string()).expect("set_product_version should succeed");
+        assert_eq!(result, "ok");
+
+        let req = ctx.request();
+        assert_eq!(req.kind, Node::Version(SubCommand::SetProductVersion));
+        let decoded: String = bincode::deserialize(&req.arg).expect("arg should decode");
+        assert_eq!(decoded, "1.2.3");
+    }
+
+    #[test]
+    fn test_set_hostname_builds_request() {
+        let ctx = TestCtx::new();
+        set_ok(&"ok".to_string());
+
+        let result = set_hostname("roxy-node".to_string()).expect("set_hostname should succeed");
+        assert_eq!(result, "ok");
+
+        let req = ctx.request();
+        assert_eq!(req.kind, Node::Hostname(SubCommand::Set));
+        let decoded: String = bincode::deserialize(&req.arg).expect("arg should decode");
+        assert_eq!(decoded, "roxy-node");
+    }
+
+    #[test]
+    fn test_syslog_servers_builds_request_with_none() {
+        let ctx = TestCtx::new();
+        let expected = Some(vec![(
+            "auth".to_string(),
+            "tcp".to_string(),
+            "127.0.0.1:514".to_string(),
+        )]);
+        set_ok(&expected);
+
+        let result = syslog_servers().expect("syslog_servers should succeed");
+        assert_eq!(result, expected);
+
+        let req = ctx.request();
+        assert_eq!(req.kind, Node::Syslog(SubCommand::Get));
+        assert_none_arg(&req);
+    }
+
+    #[test]
+    fn test_set_syslog_servers_builds_request() {
+        let ctx = TestCtx::new();
+        set_ok(&"ok".to_string());
+        let servers = vec!["tcp://127.0.0.1:514".to_string()];
+
+        let result =
+            set_syslog_servers(servers.clone()).expect("set_syslog_servers should succeed");
+        assert_eq!(result, "ok");
+
+        let req = ctx.request();
+        assert_eq!(req.kind, Node::Syslog(SubCommand::Set));
+        let decoded: Vec<String> = bincode::deserialize(&req.arg).expect("arg should decode");
+        assert_eq!(decoded, servers);
+    }
+
+    #[test]
+    fn test_init_syslog_servers_builds_request() {
+        let ctx = TestCtx::new();
+        set_ok(&"ok".to_string());
+
+        let result = init_syslog_servers().expect("init_syslog_servers should succeed");
+        assert_eq!(result, "ok");
+
+        let req = ctx.request();
+        assert_eq!(req.kind, Node::Syslog(SubCommand::Init));
+        assert_none_arg(&req);
+    }
+
+    #[test]
+    fn test_start_syslog_servers_builds_request() {
+        let ctx = TestCtx::new();
+        set_ok(&true);
+
+        let result = start_syslog_servers().expect("start_syslog_servers should succeed");
+        assert!(result);
+
+        let req = ctx.request();
+        assert_eq!(req.kind, Node::Syslog(SubCommand::Enable));
+        assert_none_arg(&req);
+    }
+
+    #[test]
+    fn test_list_of_interfaces_builds_request() {
+        let ctx = TestCtx::new();
+        let expected = vec!["eth0".to_string(), "eth1".to_string()];
+        set_ok(&expected);
+
+        let result =
+            list_of_interfaces(Some("eth".to_string())).expect("list_of_interfaces should succeed");
+        assert_eq!(result, expected);
+
+        let req = ctx.request();
+        assert_eq!(req.kind, Node::Interface(SubCommand::List));
+        let decoded: Option<String> = bincode::deserialize(&req.arg).expect("arg should decode");
+        assert_eq!(decoded, Some("eth".to_string()));
+    }
+
+    #[test]
+    fn test_interfaces_builds_request() {
+        let ctx = TestCtx::new();
+        let expected = Some(vec![(
+            "eth0".to_string(),
+            NicOutput::new(
+                Some(vec!["192.168.0.2/24".to_string()]),
+                Some(false),
+                Some("192.168.0.1".to_string()),
+                Some(vec!["8.8.8.8".to_string()]),
+            ),
+        )]);
+        set_ok(&expected);
+
+        let result = interfaces(Some("eth0".to_string())).expect("interfaces should succeed");
+        let entries = result.expect("interfaces response should be Some");
+        assert_eq!(entries.len(), 1);
+        let (name, nic) = &entries[0];
+        assert_eq!(name, "eth0");
+        assert_eq!(nic.addresses, Some(vec!["192.168.0.2/24".to_string()]));
+        assert_eq!(nic.dhcp4, Some(false));
+        assert_eq!(nic.gateway4, Some("192.168.0.1".to_string()));
+        assert_eq!(nic.nameservers, Some(vec!["8.8.8.8".to_string()]));
+
+        let req = ctx.request();
+        assert_eq!(req.kind, Node::Interface(SubCommand::Get));
+        let decoded: Option<String> = bincode::deserialize(&req.arg).expect("arg should decode");
+        assert_eq!(decoded, Some("eth0".to_string()));
+    }
+
+    #[test]
+    fn test_set_interface_builds_request() {
+        let ctx = TestCtx::new();
+        set_ok(&"ok".to_string());
+
+        let result = set_interface(
+            "eth0".to_string(),
+            Some(vec!["10.0.0.2/24".to_string()]),
+            Some(false),
+            Some("10.0.0.1".to_string()),
+            Some(vec!["1.1.1.1".to_string()]),
+        )
+        .expect("set_interface should succeed");
+        assert_eq!(result, "ok");
+
+        let req = ctx.request();
+        assert_eq!(req.kind, Node::Interface(SubCommand::Set));
+        let decoded: (String, NicOutput) =
+            bincode::deserialize(&req.arg).expect("arg should decode");
+        assert_eq!(decoded.0, "eth0");
+        assert_eq!(decoded.1.addresses, Some(vec!["10.0.0.2/24".to_string()]));
+        assert_eq!(decoded.1.dhcp4, Some(false));
+        assert_eq!(decoded.1.gateway4, Some("10.0.0.1".to_string()));
+        assert_eq!(decoded.1.nameservers, Some(vec!["1.1.1.1".to_string()]));
+    }
+
+    #[test]
+    fn test_init_interface_builds_request() {
+        let ctx = TestCtx::new();
+        set_ok(&"ok".to_string());
+
+        let result = init_interface("eth1".to_string()).expect("init_interface should succeed");
+        assert_eq!(result, "ok");
+
+        let req = ctx.request();
+        assert_eq!(req.kind, Node::Interface(SubCommand::Init));
+        let decoded: Option<String> = bincode::deserialize(&req.arg).expect("arg should decode");
+        assert_eq!(decoded, Some("eth1".to_string()));
+    }
+
+    #[test]
+    fn test_remove_interface_builds_request() {
+        let ctx = TestCtx::new();
+        set_ok(&"ok".to_string());
+
+        let result = remove_interface(
+            "eth0".to_string(),
+            None,
+            Some(false),
+            Some("10.0.0.1".to_string()),
+            Some(vec!["9.9.9.9".to_string()]),
+        )
+        .expect("remove_interface should succeed");
+        assert_eq!(result, "ok");
+
+        let req = ctx.request();
+        assert_eq!(req.kind, Node::Interface(SubCommand::Delete));
+        let decoded: (String, NicOutput) =
+            bincode::deserialize(&req.arg).expect("arg should decode");
+        assert_eq!(decoded.0, "eth0");
+        assert_eq!(decoded.1.addresses, None);
+        assert_eq!(decoded.1.dhcp4, Some(false));
+        assert_eq!(decoded.1.gateway4, Some("10.0.0.1".to_string()));
+        assert_eq!(decoded.1.nameservers, Some(vec!["9.9.9.9".to_string()]));
+    }
+
+    #[test]
+    fn test_reboot_builds_request() {
+        let ctx = TestCtx::new();
+        set_ok(&"ok".to_string());
+
+        let result = reboot().expect("reboot should succeed");
+        assert_eq!(result, "ok");
+
+        let req = ctx.request();
+        assert_eq!(req.kind, Node::Reboot);
+        assert_none_arg(&req);
+    }
+
+    #[test]
+    fn test_power_off_builds_request() {
+        let ctx = TestCtx::new();
+        set_ok(&"ok".to_string());
+
+        let result = power_off().expect("power_off should succeed");
+        assert_eq!(result, "ok");
+
+        let req = ctx.request();
+        assert_eq!(req.kind, Node::PowerOff);
+        assert_none_arg(&req);
+    }
+
+    #[test]
+    fn test_graceful_reboot_builds_request() {
+        let ctx = TestCtx::new();
+        set_ok(&"ok".to_string());
+
+        let result = graceful_reboot().expect("graceful_reboot should succeed");
+        assert_eq!(result, "ok");
+
+        let req = ctx.request();
+        assert_eq!(req.kind, Node::GracefulReboot);
+        assert_none_arg(&req);
+    }
+
+    #[test]
+    fn test_graceful_power_off_builds_request() {
+        let ctx = TestCtx::new();
+        set_ok(&"ok".to_string());
+
+        let result = graceful_power_off().expect("graceful_power_off should succeed");
+        assert_eq!(result, "ok");
+
+        let req = ctx.request();
+        assert_eq!(req.kind, Node::GracefulPowerOff);
+        assert_none_arg(&req);
+    }
+
+    #[test]
+    fn test_get_sshd_builds_request() {
+        let ctx = TestCtx::new();
+        set_ok(&2222_u16);
+
+        let result = get_sshd().expect("get_sshd should succeed");
+        assert_eq!(result, 2222);
+
+        let req = ctx.request();
+        assert_eq!(req.kind, Node::Sshd(SubCommand::Get));
+        assert_none_arg(&req);
+    }
+
+    #[test]
+    fn test_get_ntp_builds_request() {
+        let ctx = TestCtx::new();
+        let expected = Some(vec!["time.example.org".to_string()]);
+        set_ok(&expected);
+
+        let result = get_ntp().expect("get_ntp should succeed");
+        assert_eq!(result, expected);
+
+        let req = ctx.request();
+        assert_eq!(req.kind, Node::Ntp(SubCommand::Get));
+        assert_none_arg(&req);
+    }
+
+    #[test]
+    fn test_start_ntp_builds_request() {
+        let ctx = TestCtx::new();
+        set_ok(&true);
+
+        let result = start_ntp().expect("start_ntp should succeed");
+        assert!(result);
+
+        let req = ctx.request();
+        assert_eq!(req.kind, Node::Ntp(SubCommand::Enable));
+        assert_none_arg(&req);
+    }
+
+    #[test]
+    fn test_stop_ntp_builds_request() {
+        let ctx = TestCtx::new();
+        set_ok(&true);
+
+        let result = stop_ntp().expect("stop_ntp should succeed");
+        assert!(result);
+
+        let req = ctx.request();
+        assert_eq!(req.kind, Node::Ntp(SubCommand::Disable));
+        assert_none_arg(&req);
+    }
+
+    #[test]
+    fn test_start_sshd_propagates_roxy_error() {
+        let ctx = TestCtx::new();
+        set_err("roxy failed");
+
+        let err = start_sshd().expect_err("start_sshd should fail");
+        assert_eq!(err.to_string(), "roxy failed");
+
+        let req = ctx.request();
+        assert_eq!(req.kind, Node::Sshd(SubCommand::Enable));
+        assert_none_arg(&req);
     }
 }
