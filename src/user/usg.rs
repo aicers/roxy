@@ -9,11 +9,7 @@ use serde::{Deserialize, Serialize};
 #[cfg(target_os = "linux")]
 fn saturating_mul_u64(a: u64, b: u64) -> u64 {
     let product = u128::from(a) * u128::from(b);
-    if product > u128::from(u64::MAX) {
-        u64::MAX
-    } else {
-        product as u64
-    }
+    u64::try_from(product).unwrap_or(u64::MAX)
 }
 
 /// CPU, memory, and disk usage.
