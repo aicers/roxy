@@ -1030,31 +1030,10 @@ mod tests {
         assert_eq!(br0.interfaces, vec!["eth0".to_string()]);
     }
 
-    #[test]
-    fn merge_current_behavior_does_not_initialize_bridges_when_base_has_none() {
-        let mut new_bridges = HashMap::new();
-        new_bridges.insert(
-            "br0".to_string(),
-            Bridge {
-                interfaces: vec!["eth0".to_string()],
-                addresses: vec!["10.0.0.10/24".to_string()],
-                gateway4: None,
-                nameservers: Address {
-                    search: None,
-                    addresses: Some(vec!["1.1.1.1".to_string()]),
-                },
-            },
-        );
-
-        let mut base = make_netplan_with_bridges(vec![], None);
-        let new = make_netplan_with_bridges(vec![], Some(new_bridges));
-        base.merge(new);
-
-        assert!(
-            base.network.bridges.is_none(),
-            "current behavior: bridges remain None when base has none"
-        );
-    }
+    // NOTE: There is a known bug where `NetplanYaml::merge` does not initialize
+    // `self.network.bridges` when base is `None` and new is `Some`, causing
+    // bridge configuration to be dropped. This should be fixed in a separate
+    // issue.
 
     #[test]
     fn merge_preserves_unmentioned_existing_bridge_entries() {
