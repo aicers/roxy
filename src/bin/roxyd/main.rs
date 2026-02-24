@@ -88,7 +88,7 @@ async fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    let guard = match init_tracing(config.log_path.as_deref()) {
+    let _guard = match init_tracing(config.log_path.as_deref()) {
         Ok(guard) => guard,
         Err(err) => {
             eprintln!("{err}");
@@ -99,18 +99,16 @@ async fn main() -> ExitCode {
         Ok(settings) => settings,
         Err(err) => {
             tracing::error!("roxyd startup failed: {err}");
-            drop(guard);
             return ExitCode::FAILURE;
         }
     };
 
     run(&args, &settings);
-    drop(guard);
     ExitCode::SUCCESS
 }
 
 fn run(args: &Args, settings: &Settings) {
-    tracing::info!("Loaded config from: {:?}", args.config);
+    tracing::info!("Starting roxyd with config: {:?}", args.config);
     log_config_status(settings);
 
     tracing::info!("roxyd is running (skeleton mode - no protocol handlers active)");
