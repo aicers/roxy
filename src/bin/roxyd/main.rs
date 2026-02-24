@@ -70,11 +70,11 @@ fn init_tracing(log_path: Option<&Path>) -> Result<WorkerGuard> {
 
 fn log_config_status(settings: &Settings) {
     tracing::info!("Manager server: {}", settings.manager_server);
-    tracing::debug!("cert path: {}", settings.cert.display());
-    tracing::debug!("key path: {}", settings.key.display());
-    tracing::debug!("ca cert files: {}", settings.ca_certs.len());
+    tracing::debug!("Cert path: {}", settings.cert.display());
+    tracing::debug!("Key path: {}", settings.key.display());
+    tracing::debug!("CA cert files: {}", settings.ca_certs.len());
     if settings.log_path().is_none() {
-        tracing::info!("log_path not set, logging to stdout");
+        tracing::info!("Log path not set, logging to stdout");
     }
 }
 
@@ -98,7 +98,7 @@ async fn main() -> ExitCode {
     let settings = match Settings::from_args(&args, config) {
         Ok(settings) => settings,
         Err(err) => {
-            tracing::error!("roxyd startup failed: {err}");
+            tracing::error!("Roxyd startup failed: {err}");
             return ExitCode::FAILURE;
         }
     };
@@ -111,5 +111,5 @@ fn run(args: &Args, settings: &Settings) {
     tracing::info!("Starting roxyd with config: {:?}", args.config);
     log_config_status(settings);
 
-    tracing::info!("roxyd is running (skeleton mode - no protocol handlers active)");
+    tracing::info!("Roxyd is running (skeleton mode - no protocol handlers active)");
 }
