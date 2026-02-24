@@ -13,7 +13,7 @@
 
 mod settings;
 
-use std::{fs, path::Path};
+use std::{fs, path::Path, process::ExitCode};
 
 use anyhow::{Context, Result};
 use clap::Parser;
@@ -79,23 +79,39 @@ fn log_config_status(settings: &Settings) {
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
-    run().map_err(|err| {
-        tracing::error!("roxyd shutdown due to error: {err}");
-        eprintln!("{err}");
-        err
-    })
+async fn main() -> ExitCode {
+    let args = Args::parse();
+    let config = match Config::load(&args.config) {
+        Ok(config) => config,
+        Err(err) => {
+            eprintln!("{err}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let guard = match init_tracing(config.log_path.as_deref()) {
+        Ok(guard) => guard,
+        Err(err) => {
+            eprintln!("{err}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let settings = match Settings::from_args(&args, config) {
+        Ok(settings) => settings,
+        Err(err) => {
+            tracing::error!("roxyd startup failed: {err}");
+            drop(guard);
+            return ExitCode::FAILURE;
+        }
+    };
+
+    run(&args, &settings);
+    drop(guard);
+    ExitCode::SUCCESS
 }
 
-fn run() -> Result<()> {
-    let args = Args::parse();
-    let config = Config::load(&args.config)?;
-    let settings = Settings::from_args(&args, config)?;
-    let _guard = init_tracing(settings.log_path())?;
-
+fn run(args: &Args, settings: &Settings) {
     tracing::info!("Loaded config from: {:?}", args.config);
-    log_config_status(&settings);
+    log_config_status(settings);
 
     tracing::info!("roxyd is running (skeleton mode - no protocol handlers active)");
-    Ok(())
 }
