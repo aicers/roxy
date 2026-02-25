@@ -1030,11 +1030,6 @@ mod tests {
         assert_eq!(br0.interfaces, vec!["eth0".to_string()]);
     }
 
-    // NOTE: There is a known bug where `NetplanYaml::merge` does not initialize
-    // `self.network.bridges` when base is `None` and new is `Some`, causing
-    // bridge configuration to be dropped. This should be fixed in a separate
-    // issue.
-
     #[test]
     fn merge_preserves_unmentioned_existing_bridge_entries() {
         let mut base_bridges = HashMap::new();
