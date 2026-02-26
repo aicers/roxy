@@ -30,7 +30,9 @@ impl ResourceUsage {
     #[must_use]
     #[allow(clippy::cast_precision_loss)]
     pub fn disk_usage_percentage(&self) -> f32 {
-        let total = self.disk_used_bytes + self.disk_available_bytes;
+        let total = self
+            .disk_used_bytes
+            .saturating_add(self.disk_available_bytes);
         if total == 0 {
             0.0
         } else {
@@ -52,10 +54,9 @@ fn get_disk_usage(mount_point: &Path) -> Result<(u64, u64), Box<dyn std::error::
         match statvfs::statvfs(mount_point) {
             Ok(stat) => {
                 let block_size = stat.fragment_size();
-                // Space used by non-root users (matches df calculation)
-                let used_space = (stat.blocks() - stat.blocks_free()) * block_size;
-                // Space available to non-root users
-                let available_space = stat.blocks_available() * block_size;
+                let used_blocks = stat.blocks().saturating_sub(stat.blocks_free());
+                let used_space = used_blocks.saturating_mul(block_size);
+                let available_space = stat.blocks_available().saturating_mul(block_size);
                 Ok((used_space, available_space))
             }
             Err(e) => Err(Box::new(e)),
@@ -69,7 +70,7 @@ fn get_disk_usage(mount_point: &Path) -> Result<(u64, u64), Box<dyn std::error::
 
         let disks = Disks::new_with_refreshed_list();
         if let Some(d) = disks.iter().find(|&disk| disk.mount_point() == mount_point) {
-            let used_space = d.total_space() - d.available_space();
+            let used_space = d.total_space().saturating_sub(d.available_space());
             let available_space = d.available_space();
             Ok((used_space, available_space))
         } else {
@@ -97,7 +98,7 @@ pub async fn resource_usage() -> ResourceUsage {
 
                     let disks = Disks::new_with_refreshed_list();
                     if let Some(d) = disks.iter().max_by_key(|&disk| disk.total_space()) {
-                        let used = d.total_space() - d.available_space();
+                        let used = d.total_space().saturating_sub(d.available_space());
                         let available = d.available_space();
                         (used, available)
                     } else {
@@ -218,5 +219,55 @@ mod tests {
         assert!(usage.used_memory <= usage.total_memory);
         assert!(usage.disk_usage_percentage().is_finite());
         assert!((0.0..=100.0).contains(&usage.disk_usage_percentage()));
+    }
+
+    #[test]
+    fn test_disk_usage_percentage_overflow_both_max() {
+        // saturating_add(MAX, MAX) = MAX, so percentage = MAX / MAX * 100 = 100%.
+        let usage = resource_usage_with_disk(u64::MAX, u64::MAX);
+        let percentage = usage.disk_usage_percentage();
+        assert!(percentage.is_finite());
+        assert_percentage_close(percentage, 100.0, 0.001);
+    }
+
+    #[test]
+    fn test_disk_usage_percentage_overflow_used_max_available_one() {
+        let usage = resource_usage_with_disk(u64::MAX, 1);
+        let percentage = usage.disk_usage_percentage();
+        assert!(percentage.is_finite());
+        assert_percentage_close(percentage, 100.0, 0.001);
+    }
+
+    #[test]
+    fn test_disk_usage_percentage_overflow_used_one_available_max() {
+        let usage = resource_usage_with_disk(1, u64::MAX);
+        let percentage = usage.disk_usage_percentage();
+        assert!(percentage.is_finite());
+        assert_percentage_close(percentage, 0.0, 0.001);
+    }
+
+    #[test]
+    fn test_disk_usage_percentage_overflow_half_max_plus_one() {
+        let half_plus_one = u64::MAX / 2 + 1;
+        let usage = resource_usage_with_disk(half_plus_one, half_plus_one);
+        let percentage = usage.disk_usage_percentage();
+        assert!(percentage.is_finite());
+        assert_percentage_close(percentage, 50.0, 1.0);
+    }
+
+    #[test]
+    fn test_saturating_sub_underflow_clamps_to_zero() {
+        // Simulates the used-space calculation when available > total,
+        // which would underflow with raw subtraction.
+        let total: u64 = 100;
+        let available: u64 = 200;
+        let used = total.saturating_sub(available);
+        assert_eq!(used, 0);
+
+        // Extreme case: 0 - MAX
+        assert_eq!(0u64.saturating_sub(u64::MAX), 0);
+
+        // Normal case: total > available
+        assert_eq!(500u64.saturating_sub(300), 200);
     }
 }

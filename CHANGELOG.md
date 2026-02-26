@@ -17,6 +17,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   Connection details (Manager address, cert/key, CA certs) are provided via CLI
   arguments. Log output configuration can be overridden using `ROXYD_LOG_PATH`.
 
+### Fixed
+
+- Hardened arithmetic in `src/user/usg.rs` against overflow/underflow to ensure
+  deterministic behavior across debug and release builds. Replaced raw operators
+  with `saturating_add`, `saturating_sub`, and `saturating_mul`.
+
 ## [0.5.1] - 2025-11-26
 
 ### Changed
