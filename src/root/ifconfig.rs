@@ -93,15 +93,17 @@ impl NetplanYaml {
         }
         self.network.ethernets.sort_by(|a, b| a.0.cmp(&b.0));
 
-        if let Some(new_bridges) = newyml.network.bridges
-            && let Some(self_bridges) = &mut self.network.bridges
-        {
-            for (ifname, bridgecfg) in new_bridges {
-                if let Some(item) = self_bridges.get_mut(&ifname) {
-                    *item = bridgecfg;
-                } else {
-                    self_bridges.insert(ifname, bridgecfg);
+        if let Some(new_bridges) = newyml.network.bridges {
+            if let Some(self_bridges) = &mut self.network.bridges {
+                for (ifname, bridgecfg) in new_bridges {
+                    if let Some(item) = self_bridges.get_mut(&ifname) {
+                        *item = bridgecfg;
+                    } else {
+                        self_bridges.insert(ifname, bridgecfg);
+                    }
                 }
+            } else {
+                self.network.bridges = Some(new_bridges);
             }
         }
     }
@@ -995,6 +997,53 @@ mod tests {
             .get("br1")
             .expect("bridge br1 should be inserted from new config");
         assert_eq!(br1.addresses, vec!["172.16.0.10/24".to_string()]);
+    }
+
+    #[test]
+    fn merge_initializes_bridges_when_base_has_none_and_new_has_some() {
+        let mut new_bridges = HashMap::new();
+        new_bridges.insert(
+            "br0".to_string(),
+            Bridge {
+                interfaces: vec!["eth0".to_string()],
+                addresses: vec!["10.0.0.10/24".to_string()],
+                gateway4: Some("10.0.0.1".to_string()),
+                nameservers: Address {
+                    search: Some(vec!["example.local".to_string()]),
+                    addresses: Some(vec!["8.8.8.8".to_string()]),
+                },
+            },
+        );
+
+        let mut base = make_netplan_with_bridges(vec![], None);
+        let new = make_netplan_with_bridges(vec![], Some(new_bridges));
+
+        base.merge(new);
+
+        let bridges = base
+            .network
+            .bridges
+            .as_ref()
+            .expect("bridges should be initialized when base has none");
+        assert_eq!(bridges.len(), 1);
+        let br0 = bridges
+            .get("br0")
+            .expect("bridge from new config should be present");
+        assert_eq!(br0.interfaces, vec!["eth0".to_string()]);
+        assert_eq!(br0.gateway4, Some("10.0.0.1".to_string()));
+    }
+
+    #[test]
+    fn merge_keeps_bridges_none_when_both_base_and_new_have_none() {
+        let mut base = make_netplan_with_bridges(vec![], None);
+        let new = make_netplan_with_bridges(vec![], None);
+
+        base.merge(new);
+
+        assert!(
+            base.network.bridges.is_none(),
+            "bridges should remain none when both configs have none"
+        );
     }
 
     #[test]
