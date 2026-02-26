@@ -16,6 +16,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Add TOML configuration file support for `roxyd` for log output settings.
   Connection details (Manager address, cert/key, CA certs) are provided via CLI
   arguments. Log output configuration can be overridden using `ROXYD_LOG_PATH`.
+- Add review-protocol client connection skeleton for `roxyd`
+  (`review_client` module). Provides `connect()` for QUIC/mTLS
+  handshake with the Manager, `run()` for the message processing
+  loop, and request dispatch via the `review_protocol::request::Handler`
+  trait. All request handlers (`Reboot`, `Shutdown`, `ResourceUsage`,
+  `ProcessList`) are scaffolding-only (`unimplemented!()`).
 
 ## [0.5.1] - 2025-11-26
 
