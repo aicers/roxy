@@ -20,9 +20,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Fixed
 
 - Hardened arithmetic in `src/user/usg.rs` against overflow/underflow to ensure
-  deterministic behavior across debug and release builds. Disk usage percentage
-  calculation now uses `saturating_add`, subtraction uses `saturating_sub`, and
-  multiplication uses wide u128 intermediate with clamping.
+  deterministic behavior across debug and release builds. Replaced raw operators
+  with `saturating_add`, `saturating_sub`, and `saturating_mul`.
 
 ## [0.5.1] - 2025-11-26
 
