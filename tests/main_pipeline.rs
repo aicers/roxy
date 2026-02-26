@@ -1,6 +1,7 @@
 use std::io::Write;
 use std::process::{Command, Output, Stdio};
 
+use nix::fcntl::{FcntlArg, FdFlag, fcntl};
 use nix::unistd::pipe;
 use roxy::common::{Node, NodeRequest, SubCommand};
 use serde_json::json;
@@ -45,6 +46,11 @@ fn run_roxy_with_stdout(input: &[u8], stdout: Stdio) -> Output {
 
 fn broken_pipe_stdout() -> Stdio {
     let (read_end, write_end) = pipe().expect("failed to create pipe");
+    // Set CLOEXEC on the read end so that other tests' Command::spawn
+    // calls cannot inherit it, which would keep the pipe alive and
+    // prevent the expected EPIPE.
+    fcntl(&read_end, FcntlArg::F_SETFD(FdFlag::FD_CLOEXEC))
+        .expect("failed to set CLOEXEC on read end");
     drop(read_end);
     Stdio::from(write_end)
 }
