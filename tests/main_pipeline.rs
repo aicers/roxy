@@ -1,5 +1,6 @@
 use std::io::Write;
 use std::process::{Command, Output, Stdio};
+use std::sync::Mutex;
 
 use nix::fcntl::{FcntlArg, FdFlag, fcntl};
 use nix::unistd::pipe;
@@ -7,8 +8,12 @@ use roxy::common::{Node, NodeRequest, SubCommand};
 use serde_json::json;
 
 const ERR_INVALID_COMMAND: &str = "invalid command";
+static SPAWN_LOCK: Mutex<()> = Mutex::new(());
 
 fn run_roxy(input: &[u8]) -> Output {
+    let _spawn_guard = SPAWN_LOCK
+        .lock()
+        .expect("failed to acquire spawn synchronization lock");
     let mut child = Command::new(env!("CARGO_BIN_EXE_roxy"))
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -26,10 +31,13 @@ fn run_roxy(input: &[u8]) -> Output {
     child.wait_with_output().expect("failed to wait")
 }
 
-fn run_roxy_with_stdout(input: &[u8], stdout: Stdio) -> Output {
+fn run_roxy_with_stdout(input: &[u8], stdout_factory: impl FnOnce() -> Stdio) -> Output {
+    let _spawn_guard = SPAWN_LOCK
+        .lock()
+        .expect("failed to acquire spawn synchronization lock");
     let mut child = Command::new(env!("CARGO_BIN_EXE_roxy"))
         .stdin(Stdio::piped())
-        .stdout(stdout)
+        .stdout(stdout_factory())
         .stderr(Stdio::piped())
         .spawn()
         .expect("failed to spawn roxy");
@@ -46,9 +54,6 @@ fn run_roxy_with_stdout(input: &[u8], stdout: Stdio) -> Output {
 
 fn broken_pipe_stdout() -> Stdio {
     let (read_end, write_end) = pipe().expect("failed to create pipe");
-    // Set CLOEXEC on the read end so that other tests' Command::spawn
-    // calls cannot inherit it, which would keep the pipe alive and
-    // prevent the expected EPIPE.
     fcntl(&read_end, FcntlArg::F_SETFD(FdFlag::FD_CLOEXEC))
         .expect("failed to set CLOEXEC on read end");
     drop(read_end);
@@ -159,7 +164,7 @@ fn all_shutdown_kind_variants_are_covered_via_parse_error_path() {
 
 #[test]
 fn parse_error_path_is_covered_when_stdout_write_fails() {
-    let output = run_roxy_with_stdout(br#"{"kind":"PowerOff""#, broken_pipe_stdout());
+    let output = run_roxy_with_stdout(br#"{"kind":"PowerOff""#, broken_pipe_stdout);
     assert!(!output.status.success());
 }
 
@@ -168,7 +173,7 @@ fn execute_result_path_is_covered_when_stdout_write_fails() {
     let request = NodeRequest::new(Node::Version(SubCommand::Get), Option::<String>::None)
         .expect("failed to build request");
     let input = serde_json::to_vec(&request).expect("failed to serialize request");
-    let output = run_roxy_with_stdout(&input, broken_pipe_stdout());
+    let output = run_roxy_with_stdout(&input, broken_pipe_stdout);
 
     assert!(!output.status.success());
 }
