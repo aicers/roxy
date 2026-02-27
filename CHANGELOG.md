@@ -22,6 +22,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Hardened arithmetic in `src/user/usg.rs` against overflow/underflow to ensure
   deterministic behavior across debug and release builds. Replaced raw operators
   with `saturating_add`, `saturating_sub`, and `saturating_mul`.
+- Fix `set_ntp` to apply NTP server updates using `SubCommand::Set`.
 
 ## [0.5.1] - 2025-11-26
 

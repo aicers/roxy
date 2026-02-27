@@ -462,7 +462,7 @@ pub fn get_ntp() -> Result<Option<Vec<String>>> {
 /// * Return error if it fails to build request message
 /// * Return error if `run_roxy` function returns error
 pub fn set_ntp(servers: Vec<String>) -> Result<bool> {
-    if let Ok(req) = NodeRequest::new::<Vec<String>>(Node::Ntp(SubCommand::Get), servers) {
+    if let Ok(req) = NodeRequest::new::<Vec<String>>(Node::Ntp(SubCommand::Set), servers) {
         run_roxy::<bool>(req)
     } else {
         Err(anyhow!(FAIL_REQUEST))
@@ -980,6 +980,24 @@ mod tests {
         let req = ctx.request();
         assert_eq!(req.kind, Node::Ntp(SubCommand::Get));
         assert_none_arg(&req);
+    }
+
+    #[test]
+    fn test_set_ntp_builds_request() {
+        let ctx = TestCtx::new();
+        set_ok(&true);
+        let servers = vec![
+            "time.example.org".to_string(),
+            "time2.example.org".to_string(),
+        ];
+
+        let result = set_ntp(servers.clone()).expect("set_ntp should succeed");
+        assert!(result);
+
+        let req = ctx.request();
+        assert_eq!(req.kind, Node::Ntp(SubCommand::Set));
+        let decoded: Vec<String> = bincode::deserialize(&req.arg).expect("arg should decode");
+        assert_eq!(decoded, servers);
     }
 
     #[test]
