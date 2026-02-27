@@ -19,6 +19,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- Fix `NetplanYaml::merge` bridge handling so `bridges` is no longer dropped
+  when merging from `None -> Some` (issue #575). Add merge tests covering all
+  `bridges` `None/Some` combinations.
 - Hardened arithmetic in `src/user/usg.rs` against overflow/underflow to ensure
   deterministic behavior across debug and release builds. Replaced raw operators
   with `saturating_add`, `saturating_sub`, and `saturating_mul`.
