@@ -12,7 +12,7 @@ config = "0.15"
 data-encoding = "2"
 gethostname = "1.0"
 hostname = { version = "0.4", features = ["set"] }
-ipnet = "2.11"
+ipnet = "2.12"
 nix = { version = "0.31", features = ["reboot", "fs"] }
 pnet = { version = "0.35", features = ["pnet_datalink", "std"] }
 regex = "1.11"
