@@ -65,22 +65,6 @@ impl Connection {
         Ok(Self { inner: conn })
     }
 
-    /// Attempts to reconnect to the Manager after a connection loss.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the reconnection attempt fails.
-    pub async fn reconnect(
-        server_name: &str,
-        server_addr: SocketAddr,
-        cert_pem: &[u8],
-        key_pem: &[u8],
-        ca_certs_pem: &[u8],
-    ) -> Result<Self> {
-        tracing::info!("Reconnecting to Manager at {server_addr}");
-        Self::connect(server_name, server_addr, cert_pem, key_pem, ca_certs_pem).await
-    }
-
     /// Returns the remote address of the Manager.
     #[must_use]
     pub fn remote_addr(&self) -> SocketAddr {
@@ -130,10 +114,7 @@ impl Connection {
 /// # Errors
 ///
 /// Returns an error if request reading or response sending fails.
-async fn dispatch(
-    send: &mut quinn::SendStream,
-    recv: &mut quinn::RecvStream,
-) -> Result<()> {
+async fn dispatch(send: &mut quinn::SendStream, recv: &mut quinn::RecvStream) -> Result<()> {
     let mut handler = RequestHandler;
     review_protocol::request::handle(&mut handler, send, recv)
         .await
@@ -337,13 +318,11 @@ mod tests {
             .add(certs.inter_cert_der.clone())
             .expect("add inter");
 
-        let client_verifier =
-            rustls::server::WebPkiClientVerifier::builder(Arc::new(root_store))
-                .build()
-                .expect("client verifier");
+        let client_verifier = rustls::server::WebPkiClientVerifier::builder(Arc::new(root_store))
+            .build()
+            .expect("client verifier");
 
-        let server_cert_chain =
-            vec![certs.server_cert_der.clone(), certs.inter_cert_der.clone()];
+        let server_cert_chain = vec![certs.server_cert_der.clone(), certs.inter_cert_der.clone()];
         let server_tls = rustls::ServerConfig::builder()
             .with_client_cert_verifier(client_verifier)
             .with_single_cert(server_cert_chain, certs.server_key_der.clone_key())
@@ -358,9 +337,11 @@ mod tests {
 
     /// Sets up a mock Manager and client, performs the handshake, and returns
     /// both connections plus the endpoint (which must be kept alive).
-    async fn setup_test_connection()
-    -> (Connection, review_protocol::server::Connection, quinn::Endpoint)
-    {
+    async fn setup_test_connection() -> (
+        Connection,
+        review_protocol::server::Connection,
+        quinn::Endpoint,
+    ) {
         let _ = rustls::crypto::ring::default_provider().install_default();
 
         let certs = generate_certs();
@@ -447,10 +428,7 @@ mod tests {
         // Verify request/response flow with ping (EchoRequest is handled
         // internally by review_protocol without calling a handler method)
         let ping_result = server.send_ping().await;
-        assert!(
-            ping_result.is_ok(),
-            "ping should succeed: {ping_result:?}"
-        );
+        assert!(ping_result.is_ok(), "ping should succeed: {ping_result:?}");
 
         // Drop server connection to close QUIC, causing client to exit cleanly
         drop(server);
