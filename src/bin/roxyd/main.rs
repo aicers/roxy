@@ -11,6 +11,7 @@
 //!   --key path/to/key.pem --ca-certs path/to/ca.pem manager@192.168.1.100:4433
 //! ```
 
+mod control;
 mod settings;
 
 use std::{fs, path::Path, process::ExitCode};

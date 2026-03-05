@@ -1,5 +1,4 @@
 pub mod common;
-pub mod review_client;
 mod user;
 
 #[cfg(not(test))]
