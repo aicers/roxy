@@ -104,13 +104,41 @@ async fn main() -> ExitCode {
         }
     };
 
-    run(&args, &settings);
+    if let Err(err) = run(&args, &settings).await {
+        tracing::error!("Roxyd terminated with error: {err:#}");
+        return ExitCode::FAILURE;
+    }
     ExitCode::SUCCESS
 }
 
-fn run(args: &Args, settings: &Settings) {
+async fn run(args: &Args, settings: &Settings) -> Result<()> {
     tracing::info!("Starting roxyd with config: {:?}", args.config);
     log_config_status(settings);
 
-    tracing::info!("Roxyd is running (skeleton mode - no protocol handlers active)");
+    let (server_name, server_addr_str) = settings
+        .manager_server
+        .split_once('@')
+        .expect("manager_server validated in Settings::from_args");
+    let server_addr: std::net::SocketAddr = server_addr_str
+        .parse()
+        .expect("manager_server validated in Settings::from_args");
+
+    let cert_pem = fs::read(&settings.cert)
+        .with_context(|| format!("failed to read cert: {}", settings.cert.display()))?;
+    let key_pem = fs::read(&settings.key)
+        .with_context(|| format!("failed to read key: {}", settings.key.display()))?;
+
+    let mut ca_certs_pem = Vec::new();
+    for ca_path in &settings.ca_certs {
+        let pem = fs::read(ca_path)
+            .with_context(|| format!("failed to read CA cert: {}", ca_path.display()))?;
+        ca_certs_pem.extend_from_slice(&pem);
+    }
+
+    let conn =
+        control::Connection::connect(server_name, server_addr, &cert_pem, &key_pem, &ca_certs_pem)
+            .await
+            .context("failed to connect to Manager")?;
+
+    conn.run().await
 }
