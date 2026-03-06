@@ -3,6 +3,7 @@
 /// # Panics
 ///
 /// Always panics — scaffolding only, not yet implemented.
+// TODO: Implement shutdown logic once the Shutdown RequestCode is available in review-protocol.
 pub async fn handle() -> Result<(), String> {
     unimplemented!("Shutdown handler not yet implemented")
 }
