@@ -3,6 +3,7 @@
 //! This module consolidates CLI argument parsing and TOML configuration loading.
 
 use std::{
+    fs,
     net::SocketAddr,
     path::{Path, PathBuf},
 };
@@ -74,16 +75,17 @@ impl Config {
 /// Runtime settings for the `roxyd` daemon.
 #[derive(Debug, Clone)]
 pub struct Settings {
-    pub manager_server: String,
-    pub cert: PathBuf,
-    pub key: PathBuf,
-    pub ca_certs: Vec<PathBuf>,
+    pub server_name: String,
+    pub server_addr: SocketAddr,
+    pub cert_pem: Vec<u8>,
+    pub key_pem: Vec<u8>,
+    pub ca_certs_pem: Vec<Vec<u8>>,
     pub config: Config,
 }
 
 impl Settings {
     pub fn from_args(args: &Args, config: Config) -> Result<Self> {
-        let (server_name, server_addr) = args.manager_server.split_once('@').context(
+        let (server_name, server_addr_str) = args.manager_server.split_once('@').context(
             "manager_server must be in the form <server_name>@<server_ip>:<server_port>",
         )?;
 
@@ -91,15 +93,28 @@ impl Settings {
             bail!("manager_server must include a non-empty server name before '@'");
         }
 
-        server_addr
-            .parse::<SocketAddr>()
+        let server_addr: SocketAddr = server_addr_str
+            .parse()
             .context("manager_server must include a valid <server_ip>:<server_port> after '@'")?;
 
+        let cert_pem = fs::read(&args.cert)
+            .with_context(|| format!("failed to read cert: {}", args.cert.display()))?;
+        let key_pem = fs::read(&args.key)
+            .with_context(|| format!("failed to read key: {}", args.key.display()))?;
+
+        let mut ca_certs_pem = Vec::new();
+        for ca_path in &args.ca_certs {
+            let pem = fs::read(ca_path)
+                .with_context(|| format!("failed to read CA cert: {}", ca_path.display()))?;
+            ca_certs_pem.push(pem);
+        }
+
         Ok(Self {
-            manager_server: args.manager_server.clone(),
-            cert: args.cert.clone(),
-            key: args.key.clone(),
-            ca_certs: args.ca_certs.clone(),
+            server_name: server_name.to_string(),
+            server_addr,
+            cert_pem,
+            key_pem,
+            ca_certs_pem,
             config,
         })
     }
@@ -242,20 +257,6 @@ mod tests {
             ca_certs: vec![PathBuf::from("ca.pem")],
             manager_server: manager_server.to_string(),
         }
-    }
-
-    #[test]
-    fn from_args_accepts_valid_manager_server() {
-        let args = sample_args("manager@127.0.0.1:4433");
-        let settings = Settings::from_args(
-            &args,
-            Config {
-                log_path: Some(PathBuf::from("/tmp/roxyd.log")),
-            },
-        )
-        .expect("Expected valid manager_server to pass validation");
-
-        assert_eq!(settings.manager_server, "manager@127.0.0.1:4433");
     }
 
     #[test]

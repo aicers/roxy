@@ -1,8 +1,9 @@
-//! `roxyd` - New implementation path for QUIC/mTLS connectivity with Manager.
+//! `roxyd` - QUIC/mTLS connectivity daemon for Manager communication.
 //!
-//! This is a skeleton binary entrypoint that coexists with the legacy `roxy` binary.
-//! It provides configuration loading, tracing initialization, and async runtime
-//! bootstrap, but does not yet implement any review-protocol request handling.
+//! This binary coexists with the legacy `roxy` binary. It provides
+//! configuration loading, tracing initialization, async runtime bootstrap,
+//! and wires the connection lifecycle:
+//! `run` -> `control::Connection::connect` -> `conn.run` -> `dispatch` -> `handlers`.
 //!
 //! # Usage
 //!
@@ -12,6 +13,7 @@
 //! ```
 
 mod control;
+mod handlers;
 mod settings;
 
 use std::{fs, path::Path, process::ExitCode};
@@ -70,10 +72,11 @@ fn init_tracing(log_path: Option<&Path>) -> Result<WorkerGuard> {
 }
 
 fn log_config_status(settings: &Settings) {
-    tracing::info!("Manager server: {}", settings.manager_server);
-    tracing::debug!("Cert path: {}", settings.cert.display());
-    tracing::debug!("Key path: {}", settings.key.display());
-    tracing::debug!("CA cert files: {}", settings.ca_certs.len());
+    tracing::info!(
+        "Manager server: {}@{}",
+        settings.server_name,
+        settings.server_addr
+    );
     if settings.log_path().is_none() {
         tracing::info!("Log path not set, logging to stdout");
     }
@@ -104,41 +107,24 @@ async fn main() -> ExitCode {
         }
     };
 
-    if let Err(err) = run(&args, &settings).await {
+    if let Err(err) = run(&settings).await {
         tracing::error!("Roxyd terminated with error: {err:#}");
         return ExitCode::FAILURE;
     }
     ExitCode::SUCCESS
 }
 
-async fn run(args: &Args, settings: &Settings) -> Result<()> {
-    tracing::info!("Starting roxyd with config: {:?}", args.config);
+async fn run(settings: &Settings) -> Result<()> {
+    tracing::info!("Starting roxyd");
     log_config_status(settings);
 
-    let (server_name, server_addr_str) = settings
-        .manager_server
-        .split_once('@')
-        .expect("manager_server validated in Settings::from_args");
-    let server_addr: std::net::SocketAddr = server_addr_str
-        .parse()
-        .expect("manager_server validated in Settings::from_args");
-
-    let cert_pem = fs::read(&settings.cert)
-        .with_context(|| format!("failed to read cert: {}", settings.cert.display()))?;
-    let key_pem = fs::read(&settings.key)
-        .with_context(|| format!("failed to read key: {}", settings.key.display()))?;
-
-    let mut ca_certs_pem = Vec::new();
-    for ca_path in &settings.ca_certs {
-        let pem = fs::read(ca_path)
-            .with_context(|| format!("failed to read CA cert: {}", ca_path.display()))?;
-        ca_certs_pem.extend_from_slice(&pem);
-    }
-
-    let conn =
-        control::Connection::connect(server_name, server_addr, &cert_pem, &key_pem, &ca_certs_pem)
-            .await
-            .context("failed to connect to Manager")?;
+    let conn = control::Connection::new(
+        settings.server_name.clone(),
+        settings.server_addr,
+        settings.cert_pem.clone(),
+        settings.key_pem.clone(),
+        settings.ca_certs_pem.clone(),
+    );
 
     conn.run().await
 }
