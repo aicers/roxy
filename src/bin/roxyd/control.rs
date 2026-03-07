@@ -1,27 +1,50 @@
 //! Connection lifecycle and request dispatch for the review-protocol client.
 //!
 //! This module owns the full connection lifecycle for communicating with the
-//! Manager: connect, reconnect, run loop, stream accept, and dispatch entry.
-//! All request handling is delegated to the [`handlers`] module.
-
-mod handlers;
+//! Manager: connect, run loop, stream accept, and dispatch entry.
+//! All request handling is delegated to the [`handlers`](super::handlers) module.
 
 use std::net::SocketAddr;
 
 use anyhow::{Context, Result};
 use review_protocol::client::ConnectionBuilder;
 
-/// The protocol version this client supports.
-const PROTOCOL_VERSION: &str = "0.16.0";
+use super::handlers;
+
+/// The review-protocol version required by this client.
+const REQUIRED_REVIEW_VERSION: &str = "0.47.0";
 
 /// A connection to the Manager via review-protocol.
 ///
-/// Owns the underlying QUIC/mTLS connection and related state.
+/// Owns the underlying QUIC/mTLS connection and the parameters needed to
+/// reconnect after a connection loss.
 pub struct Connection {
-    inner: review_protocol::client::Connection,
+    server_name: String,
+    server_addr: SocketAddr,
+    cert_pem: Vec<u8>,
+    key_pem: Vec<u8>,
+    ca_certs_pem: Vec<Vec<u8>>,
 }
 
 impl Connection {
+    /// Creates a new `Connection` with the given parameters.
+    #[must_use]
+    pub fn new(
+        server_name: String,
+        server_addr: SocketAddr,
+        cert_pem: Vec<u8>,
+        key_pem: Vec<u8>,
+        ca_certs_pem: Vec<Vec<u8>>,
+    ) -> Self {
+        Self {
+            server_name,
+            server_addr,
+            cert_pem,
+            key_pem,
+            ca_certs_pem,
+        }
+    }
+
     /// Establishes a QUIC/mTLS connection to the Manager and performs the
     /// initial handshake.
     ///
@@ -33,27 +56,21 @@ impl Connection {
     /// Returns an error if the certificate/key is invalid, CA certificates
     /// cannot be parsed, the QUIC connection cannot be established, or the
     /// handshake with the Manager fails.
-    pub async fn connect(
-        server_name: &str,
-        server_addr: SocketAddr,
-        cert_pem: &[u8],
-        key_pem: &[u8],
-        ca_certs_pem: &[u8],
-    ) -> Result<Self> {
+    async fn connect(&self) -> Result<review_protocol::client::Connection> {
         let mut builder = ConnectionBuilder::new(
-            server_name,
-            server_addr,
+            &self.server_name,
+            self.server_addr,
             env!("CARGO_PKG_NAME"),
             env!("CARGO_PKG_VERSION"),
-            PROTOCOL_VERSION,
+            REQUIRED_REVIEW_VERSION,
             review_protocol::types::Status::Ready,
-            cert_pem,
-            key_pem,
+            &self.cert_pem,
+            &self.key_pem,
         )
         .context("failed to create connection builder")?;
 
         builder
-            .add_root_certs(&mut std::io::Cursor::new(ca_certs_pem))
+            .root_certs(&self.ca_certs_pem)
             .context("failed to add root certificates")?;
 
         let conn = builder
@@ -61,39 +78,40 @@ impl Connection {
             .await
             .context("failed to connect to Manager")?;
 
-        tracing::info!("Connected to Manager at {server_addr}");
-        Ok(Self { inner: conn })
+        tracing::info!("Connected to Manager at {}", self.server_addr);
+        Ok(conn)
     }
 
-    /// Returns the remote address of the Manager.
-    #[must_use]
-    pub fn remote_addr(&self) -> SocketAddr {
-        self.inner.remote_addr()
-    }
-
-    /// Runs the main message processing loop.
+    /// Runs the main connection loop with automatic reconnection.
     ///
-    /// Accepts incoming bidirectional streams from the Manager and dispatches
-    /// each to the request handler. The loop exits when the connection is
-    /// closed by the Manager or an unrecoverable error occurs.
+    /// Connects to the Manager, then accepts incoming bidirectional streams
+    /// and dispatches each to the request handler. When the connection is
+    /// closed by the Manager or an error occurs, it reconnects automatically.
     ///
     /// # Errors
     ///
-    /// Returns an error if the connection terminates unexpectedly.
-    pub async fn run(self) -> Result<()> {
-        tracing::info!("Starting message processing loop");
+    /// Returns an error if the initial connection cannot be established.
+    /// Subsequent reconnection failures are logged and retried.
+    pub async fn run(&self) -> Result<()> {
+        let mut inner = self.connect().await?;
         loop {
-            let (mut send, mut recv) = match self.inner.accept_bi().await {
-                Ok(streams) => streams,
-                Err(e) => {
-                    tracing::info!("Connection to Manager closed: {e}");
-                    return Ok(());
-                }
-            };
+            tracing::info!("Starting message processing loop");
+            loop {
+                let (mut send, mut recv) = match inner.accept_bi().await {
+                    Ok(streams) => streams,
+                    Err(e) => {
+                        tracing::info!("Connection to Manager closed: {e}");
+                        break;
+                    }
+                };
 
-            if let Err(e) = dispatch(&mut send, &mut recv).await {
-                tracing::error!("Request handling failed: {e}");
+                if let Err(e) = dispatch(&mut send, &mut recv).await {
+                    tracing::error!("Request handling failed: {e}");
+                }
             }
+
+            tracing::info!("Reconnecting to Manager...");
+            inner = self.connect().await.context("failed to reconnect to Manager")?;
         }
     }
 }
@@ -245,7 +263,7 @@ mod tests {
 
     use super::*;
 
-    const TEST_PROTOCOL_VERSION: &str = "0.16.0";
+    const TEST_PROTOCOL_VERSION: &str = "0.47.0";
 
     struct TestCerts {
         root_cert_pem: String,
@@ -336,9 +354,10 @@ mod tests {
     }
 
     /// Sets up a mock Manager and client, performs the handshake, and returns
-    /// both connections plus the endpoint (which must be kept alive).
+    /// the server connection, the endpoint (which must be kept alive), and the
+    /// connection parameters.
     async fn setup_test_connection() -> (
-        Connection,
+        review_protocol::client::Connection,
         review_protocol::server::Connection,
         quinn::Endpoint,
     ) {
@@ -347,7 +366,18 @@ mod tests {
         let certs = generate_certs();
         let endpoint = build_mock_manager_endpoint(&certs);
         let server_addr = endpoint.local_addr().expect("server addr");
-        let ca_bundle = format!("{}{}", certs.root_cert_pem, certs.inter_cert_pem);
+        let ca_certs = vec![
+            certs.root_cert_pem.into_bytes(),
+            certs.inter_cert_pem.into_bytes(),
+        ];
+
+        let conn = Connection::new(
+            "localhost".to_string(),
+            server_addr,
+            certs.client_cert_pem.into_bytes(),
+            certs.client_key_pem.into_bytes(),
+            ca_certs,
+        );
 
         let (server_conn, client_conn) = tokio::join!(
             async {
@@ -365,13 +395,7 @@ mod tests {
                 .expect("server handshake");
                 review_protocol::server::Connection::from_quinn(quinn_conn)
             },
-            Connection::connect(
-                "localhost",
-                server_addr,
-                certs.client_cert_pem.as_bytes(),
-                certs.client_key_pem.as_bytes(),
-                ca_bundle.as_bytes(),
-            )
+            conn.connect()
         );
 
         (client_conn.expect("client connect"), server_conn, endpoint)
@@ -386,7 +410,18 @@ mod tests {
         let certs = generate_certs();
         let endpoint = build_mock_manager_endpoint(&certs);
         let server_addr = endpoint.local_addr().expect("server addr");
-        let ca_bundle = format!("{}{}", certs.root_cert_pem, certs.inter_cert_pem);
+        let ca_certs = vec![
+            certs.root_cert_pem.into_bytes(),
+            certs.inter_cert_pem.into_bytes(),
+        ];
+
+        let conn = Connection::new(
+            "localhost".to_string(),
+            server_addr,
+            certs.client_cert_pem.into_bytes(),
+            certs.client_key_pem.into_bytes(),
+            ca_certs,
+        );
 
         let ((agent_info, _quinn_conn), conn_result) = tokio::join!(
             async {
@@ -404,33 +439,33 @@ mod tests {
                 .expect("server handshake");
                 (agent_info, quinn_conn)
             },
-            Connection::connect(
-                "localhost",
-                server_addr,
-                certs.client_cert_pem.as_bytes(),
-                certs.client_key_pem.as_bytes(),
-                ca_bundle.as_bytes(),
-            )
+            conn.connect()
         );
 
         assert_eq!(agent_info.app_name, env!("CARGO_PKG_NAME"));
-        let conn = conn_result.expect("client connection");
-        assert_eq!(conn.remote_addr(), server_addr);
+        let inner = conn_result.expect("client connection");
+        assert_eq!(inner.remote_addr(), server_addr);
     }
 
     // -- Test: request/response flow after handshake (ping/echo) ------
 
     #[tokio::test]
     async fn handshake_and_request_response_flow() {
-        let (conn, server, _endpoint) = setup_test_connection().await;
-        let task = tokio::spawn(conn.run());
+        let (inner, server, _endpoint) = setup_test_connection().await;
+        let task = tokio::spawn(async move {
+            loop {
+                let Ok((mut send, mut recv)) = inner.accept_bi().await else {
+                    return Ok::<(), anyhow::Error>(());
+                };
+                if let Err(e) = dispatch(&mut send, &mut recv).await {
+                    tracing::error!("Request handling failed: {e}");
+                }
+            }
+        });
 
-        // Verify request/response flow with ping (EchoRequest is handled
-        // internally by review_protocol without calling a handler method)
         let ping_result = server.send_ping().await;
         assert!(ping_result.is_ok(), "ping should succeed: {ping_result:?}");
 
-        // Drop server connection to close QUIC, causing client to exit cleanly
         drop(server);
         let task_result = task.await.expect("task should not panic");
         assert!(task_result.is_ok());
@@ -440,8 +475,17 @@ mod tests {
 
     #[tokio::test]
     async fn dispatch_reboot_over_live_connection() {
-        let (conn, server, _endpoint) = setup_test_connection().await;
-        let task = tokio::spawn(conn.run());
+        let (inner, server, _endpoint) = setup_test_connection().await;
+        let task = tokio::spawn(async move {
+            loop {
+                let Ok((mut send, mut recv)) = inner.accept_bi().await else {
+                    return Ok::<(), anyhow::Error>(());
+                };
+                if let Err(e) = dispatch(&mut send, &mut recv).await {
+                    tracing::error!("Request handling failed: {e}");
+                }
+            }
+        });
 
         let result = server.send_reboot_cmd().await;
         assert!(result.is_err(), "should fail: handler is unimplemented");
@@ -452,8 +496,17 @@ mod tests {
 
     #[tokio::test]
     async fn dispatch_shutdown_over_live_connection() {
-        let (conn, server, _endpoint) = setup_test_connection().await;
-        let task = tokio::spawn(conn.run());
+        let (inner, server, _endpoint) = setup_test_connection().await;
+        let task = tokio::spawn(async move {
+            loop {
+                let Ok((mut send, mut recv)) = inner.accept_bi().await else {
+                    return Ok::<(), anyhow::Error>(());
+                };
+                if let Err(e) = dispatch(&mut send, &mut recv).await {
+                    tracing::error!("Request handling failed: {e}");
+                }
+            }
+        });
 
         let result = server.send_shutdown_cmd().await;
         assert!(result.is_err(), "should fail: handler is unimplemented");
@@ -464,8 +517,17 @@ mod tests {
 
     #[tokio::test]
     async fn dispatch_resource_usage_over_live_connection() {
-        let (conn, server, _endpoint) = setup_test_connection().await;
-        let task = tokio::spawn(conn.run());
+        let (inner, server, _endpoint) = setup_test_connection().await;
+        let task = tokio::spawn(async move {
+            loop {
+                let Ok((mut send, mut recv)) = inner.accept_bi().await else {
+                    return Ok::<(), anyhow::Error>(());
+                };
+                if let Err(e) = dispatch(&mut send, &mut recv).await {
+                    tracing::error!("Request handling failed: {e}");
+                }
+            }
+        });
 
         let result = server.get_resource_usage().await;
         assert!(result.is_err(), "should fail: handler is unimplemented");
@@ -476,8 +538,17 @@ mod tests {
 
     #[tokio::test]
     async fn dispatch_process_list_over_live_connection() {
-        let (conn, server, _endpoint) = setup_test_connection().await;
-        let task = tokio::spawn(conn.run());
+        let (inner, server, _endpoint) = setup_test_connection().await;
+        let task = tokio::spawn(async move {
+            loop {
+                let Ok((mut send, mut recv)) = inner.accept_bi().await else {
+                    return Ok::<(), anyhow::Error>(());
+                };
+                if let Err(e) = dispatch(&mut send, &mut recv).await {
+                    tracing::error!("Request handling failed: {e}");
+                }
+            }
+        });
 
         let result = server.get_process_list().await;
         assert!(result.is_err(), "should fail: handler is unimplemented");
