@@ -111,7 +111,10 @@ impl Connection {
             }
 
             tracing::info!("Reconnecting to Manager...");
-            inner = self.connect().await.context("failed to reconnect to Manager")?;
+            inner = self
+                .connect()
+                .await
+                .context("failed to reconnect to Manager")?;
         }
     }
 }
