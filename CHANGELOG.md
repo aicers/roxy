@@ -10,25 +10,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - Add `roxyd` binary entrypoint as a new implementation path for QUIC/mTLS
   connectivity with Manager. This is a skeleton that coexists with the legacy
-  `roxy` binary and does not include protocol handlers yet. Run with: `cargo run
-  --bin roxyd -- -c path/to/config.toml --cert path/to/cert.pem --key
-  path/to/key.pem --ca-certs path/to/ca.pem manager@192.168.1.100:4433`.
+  `roxy` binary and wires the review-protocol connection lifecycle plus
+  scaffold request handlers. Run with: `cargo run --bin roxyd -- -c
+  path/to/config.toml --cert path/to/cert.pem --key path/to/key.pem --ca-certs
+  path/to/ca.pem manager@192.168.1.100:4433`.
 - Add TOML configuration file support for `roxyd` for log output settings.
   Connection details (Manager address, cert/key, CA certs) are provided via CLI
   arguments. Log output configuration can be overridden using `ROXYD_LOG_PATH`.
-- Add review-protocol client connection skeleton for `roxyd` with
-  `control.rs` for connection lifecycle and `handlers/` for request
-  dispatch. Provides `connect()` for QUIC/mTLS handshake with the
-  Manager, `run()` with automatic reconnection on connection loss, and
-  explicit `RequestCode` dispatch via the
-  `review_protocol::request::Handler` trait. The `roxyd` binary wires
-  the connection lifecycle in `main()`:
-  `run` -> `control::Connection::connect` -> `conn.run` -> `dispatch`
-  -> `handlers`. Settings parsing and certificate loading are
-  consolidated in `Settings::from_args()`. All request handlers
-  (`Reboot`, `Shutdown`, `ResourceUsage`, `ProcessList`) are
-  scaffolding-only (`unimplemented!()`), and all other request codes
-  also fail explicitly.
 
 ### Fixed
 

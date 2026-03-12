@@ -3,7 +3,8 @@
 //! This binary coexists with the legacy `roxy` binary. It provides
 //! configuration loading, tracing initialization, async runtime bootstrap,
 //! and wires the connection lifecycle:
-//! `run` -> `control::Connection::connect` -> `conn.run` -> `dispatch` -> `handlers`.
+//! `run` -> `control::Connection::new` -> `conn.run` -> `connect` -> `dispatch`
+//! -> `handlers`.
 //!
 //! # Usage
 //!

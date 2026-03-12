@@ -1,10 +1,10 @@
 //! Connection lifecycle and request dispatch for the review-protocol client.
 //!
 //! This module owns the full connection lifecycle for communicating with the
-//! Manager: connect, run loop, stream accept, and dispatch entry.
+//! Manager: connect, run loop, stream accept, reconnect, and dispatch entry.
 //! All request handling is delegated to the [`handlers`](super::handlers) module.
 
-use std::net::SocketAddr;
+use std::{net::SocketAddr, time::Duration};
 
 use anyhow::{Context, Result};
 use review_protocol::client::ConnectionBuilder;
@@ -27,6 +27,11 @@ pub struct Connection {
 }
 
 impl Connection {
+    #[cfg(not(test))]
+    const RECONNECTION_DELAY: Duration = Duration::from_secs(10);
+    #[cfg(test)]
+    const RECONNECTION_DELAY: Duration = Duration::from_millis(10);
+
     /// Creates a new `Connection` with the given parameters.
     #[must_use]
     pub fn new(
@@ -111,10 +116,19 @@ impl Connection {
             }
 
             tracing::info!("Reconnecting to Manager...");
-            inner = self
-                .connect()
-                .await
-                .context("failed to reconnect to Manager")?;
+            inner = self.reconnect_loop().await;
+        }
+    }
+
+    async fn reconnect_loop(&self) -> review_protocol::client::Connection {
+        loop {
+            match self.connect().await {
+                Ok(conn) => return conn,
+                Err(e) => {
+                    tracing::error!("Failed to reconnect to Manager: {e:#}");
+                    tokio::time::sleep(Self::RECONNECTION_DELAY).await;
+                }
+            }
         }
     }
 }
@@ -123,13 +137,13 @@ impl Connection {
 /// them to the appropriate handler.
 ///
 /// The local dispatch contract is implemented via [`RequestHandler`], which
-/// explicitly matches each [`review_protocol::client::RequestCode`] to its
-/// handler:
+/// maps the review-protocol handler callbacks to the roxyd handlers:
 ///
 /// - `RequestCode::Reboot` → [`handlers::reboot`]
 /// - `RequestCode::Shutdown` → [`handlers::shutdown`]
 /// - `RequestCode::ResourceUsage` → [`handlers::resource_usage`]
 /// - `RequestCode::ProcessList` → [`handlers::process_list`]
+/// - `RequestCode::EchoRequest` → success response from `review-protocol`
 /// - All other codes → explicit `unimplemented!()`
 ///
 /// # Errors
@@ -142,19 +156,17 @@ async fn dispatch(send: &mut quinn::SendStream, recv: &mut quinn::RecvStream) ->
         .map_err(|e| anyhow::anyhow!("{e}"))
 }
 
-/// Request handler that explicitly dispatches every [`RequestCode`] arm.
+/// Request handler that maps review-protocol requests into roxyd handlers.
 ///
 /// roxyd is assumed to run with sudo privilege from startup; there is no
-/// privileged vs non-privileged split. All four required handlers are
-/// scaffolding-only (`unimplemented!()`). All other request codes also
-/// fail explicitly with `unimplemented!()` to keep the dispatch contract
-/// visible.
+/// privileged vs non-privileged split. The required handlers are
+/// scaffolding-only (`unimplemented!()`). `EchoRequest` is handled by
+/// `review-protocol`; all other request codes fail explicitly with
+/// `unimplemented!()`.
 struct RequestHandler;
 
 #[async_trait::async_trait]
 impl review_protocol::request::Handler for RequestHandler {
-    // ── Required handlers (scaffolding) ─────────────────────────────
-
     async fn reboot(&mut self) -> Result<(), String> {
         handlers::reboot::handle().await
     }
@@ -172,8 +184,6 @@ impl review_protocol::request::Handler for RequestHandler {
     async fn process_list(&mut self) -> Result<Vec<review_protocol::types::Process>, String> {
         handlers::process_list::handle().await
     }
-
-    // ── Explicit fallback for all other request codes ───────────────
 
     async fn dns_start(&mut self) -> Result<(), String> {
         unimplemented!("DnsStart not supported by roxyd")
@@ -267,6 +277,7 @@ mod tests {
     use super::*;
 
     const TEST_PROTOCOL_VERSION: &str = "0.47.0";
+    const TEST_BIND_ADDR: &str = "127.0.0.1:0";
 
     struct TestCerts {
         root_cert_pem: String,
@@ -330,7 +341,7 @@ mod tests {
     }
 
     /// Creates a QUIC server endpoint configured for mTLS.
-    fn build_mock_manager_endpoint(certs: &TestCerts) -> quinn::Endpoint {
+    fn build_mock_manager_endpoint(certs: &TestCerts, addr: SocketAddr) -> quinn::Endpoint {
         let mut root_store = rustls::RootCertStore::empty();
         root_store
             .add(certs.root_cert_der.clone())
@@ -352,7 +363,6 @@ mod tests {
         let quic_config = quinn::crypto::rustls::QuicServerConfig::try_from(server_tls)
             .expect("QUIC server config");
         let server_config = quinn::ServerConfig::with_crypto(Arc::new(quic_config));
-        let addr: SocketAddr = "127.0.0.1:0".parse().expect("addr");
         quinn::Endpoint::server(server_config, addr).expect("server endpoint")
     }
 
@@ -367,7 +377,8 @@ mod tests {
         let _ = rustls::crypto::ring::default_provider().install_default();
 
         let certs = generate_certs();
-        let endpoint = build_mock_manager_endpoint(&certs);
+        let addr: SocketAddr = TEST_BIND_ADDR.parse().expect("addr");
+        let endpoint = build_mock_manager_endpoint(&certs, addr);
         let server_addr = endpoint.local_addr().expect("server addr");
         let ca_certs = vec![
             certs.root_cert_pem.into_bytes(),
@@ -411,7 +422,8 @@ mod tests {
         let _ = rustls::crypto::ring::default_provider().install_default();
 
         let certs = generate_certs();
-        let endpoint = build_mock_manager_endpoint(&certs);
+        let addr: SocketAddr = TEST_BIND_ADDR.parse().expect("addr");
+        let endpoint = build_mock_manager_endpoint(&certs, addr);
         let server_addr = endpoint.local_addr().expect("server addr");
         let ca_certs = vec![
             certs.root_cert_pem.into_bytes(),
@@ -558,5 +570,89 @@ mod tests {
 
         let task_err = task.await.expect_err("task should have panicked");
         assert!(task_err.is_panic());
+    }
+
+    #[tokio::test]
+    async fn run_reconnects_after_connection_close() {
+        use tokio::sync::oneshot;
+
+        let _ = rustls::crypto::ring::default_provider().install_default();
+
+        let certs = generate_certs();
+        let bind_addr: SocketAddr = TEST_BIND_ADDR.parse().expect("bind addr");
+        let endpoint = build_mock_manager_endpoint(&certs, bind_addr);
+        let addr = endpoint.local_addr().expect("server addr");
+        let ca_certs = vec![
+            certs.root_cert_pem.clone().into_bytes(),
+            certs.inter_cert_pem.clone().into_bytes(),
+        ];
+        let client_cert_pem = certs.client_cert_pem.clone().into_bytes();
+        let client_key_pem = certs.client_key_pem.clone().into_bytes();
+
+        let conn = Connection::new(
+            "localhost".to_string(),
+            addr,
+            client_cert_pem,
+            client_key_pem,
+            ca_certs,
+        );
+
+        let (reconnected_tx, reconnected_rx) = oneshot::channel();
+
+        let server_task = tokio::spawn(async move {
+            let incoming = endpoint.accept().await.expect("accept first connection");
+            let quinn_conn = incoming.await.expect("first incoming connection");
+            let peer_addr = quinn_conn.remote_address();
+            let version_req = format!(">={TEST_PROTOCOL_VERSION}");
+            let _agent_info = review_protocol::server::handshake(
+                &quinn_conn,
+                peer_addr,
+                &version_req,
+                TEST_PROTOCOL_VERSION,
+            )
+            .await
+            .expect("first server handshake");
+
+            let server_conn = review_protocol::server::Connection::from_quinn(quinn_conn.clone());
+            server_conn
+                .send_ping()
+                .await
+                .expect("send ping before close");
+            quinn_conn.close(0u32.into(), b"test reconnect");
+            drop(server_conn);
+            drop(quinn_conn);
+
+            let incoming = endpoint.accept().await.expect("accept second connection");
+            let quinn_conn = incoming.await.expect("second incoming connection");
+            let peer_addr = quinn_conn.remote_address();
+            let _agent_info = review_protocol::server::handshake(
+                &quinn_conn,
+                peer_addr,
+                &version_req,
+                TEST_PROTOCOL_VERSION,
+            )
+            .await
+            .expect("second server handshake");
+
+            let _ = reconnected_tx.send(());
+            std::future::pending::<()>().await;
+        });
+
+        let run_task = tokio::spawn(async move { conn.run().await });
+
+        tokio::time::timeout(Duration::from_secs(1), reconnected_rx)
+            .await
+            .expect("run should reconnect after the connection is closed")
+            .expect("reconnect notification should be sent");
+
+        run_task.abort();
+        let run_abort = run_task.await.expect_err("run task should be aborted");
+        assert!(run_abort.is_cancelled());
+
+        server_task.abort();
+        let server_abort = server_task
+            .await
+            .expect_err("server task should be aborted");
+        assert!(server_abort.is_cancelled());
     }
 }
