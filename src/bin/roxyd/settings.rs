@@ -273,13 +273,10 @@ mod tests {
         let cert = write_temp_file(b"cert");
         let key = write_temp_file(b"key");
         let ca = write_temp_file(b"ca");
-        let args = Args {
-            config: PathBuf::from("config.toml"),
-            cert: cert.path().to_path_buf(),
-            key: key.path().to_path_buf(),
-            ca_certs: vec![ca.path().to_path_buf()],
-            manager_server: "manager@127.0.0.1:4433".to_string(),
-        };
+        let mut args = sample_args("manager@127.0.0.1:4433");
+        args.cert = cert.path().to_path_buf();
+        args.key = key.path().to_path_buf();
+        args.ca_certs = vec![ca.path().to_path_buf()];
 
         let settings = Settings::from_args(&args, Config { log_path: None })
             .expect("Expected valid manager_server to pass validation");
