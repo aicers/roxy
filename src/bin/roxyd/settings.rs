@@ -259,6 +259,41 @@ mod tests {
         }
     }
 
+    fn write_temp_file(contents: &[u8]) -> NamedTempFile {
+        let mut file = Builder::new()
+            .tempfile()
+            .expect("Failed to create temp file");
+        file.write_all(contents)
+            .expect("Failed to write temp file contents");
+        file
+    }
+
+    #[test]
+    fn from_args_accepts_valid_manager_server() {
+        let cert = write_temp_file(b"cert");
+        let key = write_temp_file(b"key");
+        let ca = write_temp_file(b"ca");
+        let args = Args {
+            config: PathBuf::from("config.toml"),
+            cert: cert.path().to_path_buf(),
+            key: key.path().to_path_buf(),
+            ca_certs: vec![ca.path().to_path_buf()],
+            manager_server: "manager@127.0.0.1:4433".to_string(),
+        };
+
+        let settings = Settings::from_args(&args, Config { log_path: None })
+            .expect("Expected valid manager_server to pass validation");
+
+        assert_eq!(settings.server_name, "manager");
+        assert_eq!(
+            settings.server_addr,
+            "127.0.0.1:4433".parse().expect("valid socket addr")
+        );
+        assert_eq!(settings.cert_pem, b"cert");
+        assert_eq!(settings.key_pem, b"key");
+        assert_eq!(settings.ca_certs_pem, vec![b"ca".to_vec()]);
+    }
+
     #[test]
     fn from_args_rejects_missing_separator() {
         let args = sample_args("manager-127.0.0.1:4433");

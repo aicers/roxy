@@ -18,7 +18,7 @@ const REQUIRED_REVIEW_VERSION: &str = "0.47.0";
 ///
 /// Owns the underlying QUIC/mTLS connection and the parameters needed to
 /// reconnect after a connection loss.
-pub struct Connection {
+pub(crate) struct Connection {
     server_name: String,
     server_addr: SocketAddr,
     cert_pem: Vec<u8>,
@@ -74,9 +74,12 @@ impl Connection {
         )
         .context("failed to create connection builder")?;
 
-        builder
-            .root_certs(&self.ca_certs_pem)
-            .context("failed to add root certificates")?;
+        for pem in &self.ca_certs_pem {
+            let mut reader = std::io::Cursor::new(pem);
+            builder
+                .add_root_certs(&mut reader)
+                .context("failed to add root certificates")?;
+        }
 
         let conn = builder
             .connect()
@@ -436,6 +439,48 @@ mod tests {
             certs.client_cert_pem.into_bytes(),
             certs.client_key_pem.into_bytes(),
             ca_certs,
+        );
+
+        let ((agent_info, _quinn_conn), conn_result) = tokio::join!(
+            async {
+                let incoming = endpoint.accept().await.expect("accept");
+                let quinn_conn = incoming.await.expect("incoming conn");
+                let addr = quinn_conn.remote_address();
+                let version_req = format!(">={TEST_PROTOCOL_VERSION}");
+                let agent_info = review_protocol::server::handshake(
+                    &quinn_conn,
+                    addr,
+                    &version_req,
+                    TEST_PROTOCOL_VERSION,
+                )
+                .await
+                .expect("server handshake");
+                (agent_info, quinn_conn)
+            },
+            conn.connect()
+        );
+
+        assert_eq!(agent_info.app_name, env!("CARGO_PKG_NAME"));
+        let inner = conn_result.expect("client connection");
+        assert_eq!(inner.remote_addr(), server_addr);
+    }
+
+    #[tokio::test]
+    async fn connect_and_handshake_with_combined_ca_bundle() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+
+        let certs = generate_certs();
+        let addr: SocketAddr = TEST_BIND_ADDR.parse().expect("addr");
+        let endpoint = build_mock_manager_endpoint(&certs, addr);
+        let server_addr = endpoint.local_addr().expect("server addr");
+        let combined_ca_bundle = format!("{}{}", certs.root_cert_pem, certs.inter_cert_pem);
+
+        let conn = Connection::new(
+            "localhost".to_string(),
+            server_addr,
+            certs.client_cert_pem.into_bytes(),
+            certs.client_key_pem.into_bytes(),
+            vec![combined_ca_bundle.into_bytes()],
         );
 
         let ((agent_info, _quinn_conn), conn_result) = tokio::join!(

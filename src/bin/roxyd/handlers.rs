@@ -1,4 +1,4 @@
-pub mod process_list;
-pub mod reboot;
-pub mod resource_usage;
-pub mod shutdown;
+pub(crate) mod process_list;
+pub(crate) mod reboot;
+pub(crate) mod resource_usage;
+pub(crate) mod shutdown;
