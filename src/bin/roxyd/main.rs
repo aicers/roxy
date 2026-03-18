@@ -107,7 +107,6 @@ async fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-
     if let Err(err) = run(&settings).await {
         tracing::error!("Roxyd terminated with error: {err:#}");
         return ExitCode::FAILURE;
@@ -119,13 +118,7 @@ async fn run(settings: &Settings) -> Result<()> {
     tracing::info!("Starting roxyd");
     log_config_status(settings);
 
-    let conn = control::Connection::new(
-        settings.server_name.clone(),
-        settings.server_addr,
-        settings.cert_pem.clone(),
-        settings.key_pem.clone(),
-        settings.ca_certs_pem.clone(),
-    );
+    let conn = control::Connection::new(settings)?;
 
     conn.run().await
 }

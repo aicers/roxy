@@ -77,11 +77,13 @@ impl Config {
 pub struct Settings {
     pub server_name: String,
     pub server_addr: SocketAddr,
-    pub cert_pem: Vec<u8>,
-    pub key_pem: Vec<u8>,
-    pub ca_certs_pem: Vec<Vec<u8>>,
+    pub cert: PathBuf,
+    pub key: PathBuf,
+    pub ca_certs: Vec<PathBuf>,
     pub config: Config,
 }
+
+type TlsMaterials = (Vec<u8>, Vec<u8>, Vec<Vec<u8>>);
 
 impl Settings {
     pub fn from_args(args: &Args, config: Config) -> Result<Self> {
@@ -97,26 +99,30 @@ impl Settings {
             .parse()
             .context("manager_server must include a valid <server_ip>:<server_port> after '@'")?;
 
-        let cert_pem = fs::read(&args.cert)
-            .with_context(|| format!("failed to read cert: {}", args.cert.display()))?;
-        let key_pem = fs::read(&args.key)
-            .with_context(|| format!("failed to read key: {}", args.key.display()))?;
+        Ok(Self {
+            server_name: server_name.to_string(),
+            server_addr,
+            cert: args.cert.clone(),
+            key: args.key.clone(),
+            ca_certs: args.ca_certs.clone(),
+            config,
+        })
+    }
 
-        let mut ca_certs_pem = Vec::new();
-        for ca_path in &args.ca_certs {
+    pub fn load_tls_materials(&self) -> Result<TlsMaterials> {
+        let cert_pem = fs::read(&self.cert)
+            .with_context(|| format!("failed to read cert: {}", self.cert.display()))?;
+        let key_pem = fs::read(&self.key)
+            .with_context(|| format!("failed to read key: {}", self.key.display()))?;
+
+        let mut ca_certs_pem = Vec::with_capacity(self.ca_certs.len());
+        for ca_path in &self.ca_certs {
             let pem = fs::read(ca_path)
                 .with_context(|| format!("failed to read CA cert: {}", ca_path.display()))?;
             ca_certs_pem.push(pem);
         }
 
-        Ok(Self {
-            server_name: server_name.to_string(),
-            server_addr,
-            cert_pem,
-            key_pem,
-            ca_certs_pem,
-            config,
-        })
+        Ok((cert_pem, key_pem, ca_certs_pem))
     }
 
     pub fn log_path(&self) -> Option<&std::path::Path> {
@@ -270,13 +276,7 @@ mod tests {
 
     #[test]
     fn from_args_accepts_valid_manager_server() {
-        let cert = write_temp_file(b"cert");
-        let key = write_temp_file(b"key");
-        let ca = write_temp_file(b"ca");
-        let mut args = sample_args("manager@127.0.0.1:4433");
-        args.cert = cert.path().to_path_buf();
-        args.key = key.path().to_path_buf();
-        args.ca_certs = vec![ca.path().to_path_buf()];
+        let args = sample_args("manager@127.0.0.1:4433");
 
         let settings = Settings::from_args(&args, Config { log_path: None })
             .expect("Expected valid manager_server to pass validation");
@@ -286,9 +286,6 @@ mod tests {
             settings.server_addr,
             "127.0.0.1:4433".parse().expect("valid socket addr")
         );
-        assert_eq!(settings.cert_pem, b"cert");
-        assert_eq!(settings.key_pem, b"key");
-        assert_eq!(settings.ca_certs_pem, vec![b"ca".to_vec()]);
     }
 
     #[test]
@@ -328,5 +325,26 @@ mod tests {
                 .contains("manager_server must include a non-empty server name"),
             "Unexpected error message: {err}"
         );
+    }
+
+    #[test]
+    fn load_tls_materials_reads_pem_files() {
+        let cert = write_temp_file(b"cert");
+        let key = write_temp_file(b"key");
+        let ca = write_temp_file(b"ca");
+        let mut args = sample_args("manager@127.0.0.1:4433");
+        args.cert = cert.path().to_path_buf();
+        args.key = key.path().to_path_buf();
+        args.ca_certs = vec![ca.path().to_path_buf()];
+        let settings = Settings::from_args(&args, Config { log_path: None })
+            .expect("Expected valid manager_server to pass validation");
+
+        let (cert_pem, key_pem, ca_certs_pem) = settings
+            .load_tls_materials()
+            .expect("Expected PEM files to load");
+
+        assert_eq!(cert_pem, b"cert");
+        assert_eq!(key_pem, b"key");
+        assert_eq!(ca_certs_pem, vec![b"ca".to_vec()]);
     }
 }

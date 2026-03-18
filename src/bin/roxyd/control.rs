@@ -4,12 +4,12 @@
 //! Manager: connect, run loop, stream accept, reconnect, and dispatch entry.
 //! All request handling is delegated to the [`handlers`](super::handlers) module.
 
-use std::{net::SocketAddr, time::Duration};
+use std::time::Duration;
 
 use anyhow::{Context, Result};
 use review_protocol::client::ConnectionBuilder;
 
-use super::handlers;
+use super::{handlers, settings::Settings};
 
 /// The review-protocol version required by this client.
 const REQUIRED_REVIEW_VERSION: &str = "0.47.0";
@@ -19,11 +19,7 @@ const REQUIRED_REVIEW_VERSION: &str = "0.47.0";
 /// Owns the underlying QUIC/mTLS connection and the parameters needed to
 /// reconnect after a connection loss.
 pub(crate) struct Connection {
-    server_name: String,
-    server_addr: SocketAddr,
-    cert_pem: Vec<u8>,
-    key_pem: Vec<u8>,
-    ca_certs_pem: Vec<Vec<u8>>,
+    builder: ConnectionBuilder,
 }
 
 impl Connection {
@@ -32,61 +28,54 @@ impl Connection {
     #[cfg(test)]
     const RECONNECTION_DELAY: Duration = Duration::from_millis(10);
 
-    /// Creates a new `Connection` with the given parameters.
-    #[must_use]
-    pub fn new(
-        server_name: String,
-        server_addr: SocketAddr,
-        cert_pem: Vec<u8>,
-        key_pem: Vec<u8>,
-        ca_certs_pem: Vec<Vec<u8>>,
-    ) -> Self {
-        Self {
-            server_name,
-            server_addr,
-            cert_pem,
-            key_pem,
-            ca_certs_pem,
-        }
-    }
-
-    /// Establishes a QUIC/mTLS connection to the Manager and performs the
-    /// initial handshake.
+    /// Creates a new `Connection` with a reusable TLS-configured builder.
     ///
-    /// Uses [`ConnectionBuilder::new()`] as the single entrypoint for
-    /// establishing the connection.
+    /// Loads the client certificate, private key, and CA certificates from the
+    /// configured paths and uses them to prepare a reusable connection builder.
     ///
     /// # Errors
     ///
-    /// Returns an error if the certificate/key is invalid, CA certificates
-    /// cannot be parsed, the QUIC connection cannot be established, or the
-    /// handshake with the Manager fails.
-    async fn connect(&self) -> Result<review_protocol::client::Connection> {
+    /// Returns an error if the configured TLS files cannot be read or if the
+    /// connection builder cannot be initialized from the configured credentials.
+    pub fn new(settings: &Settings) -> Result<Self> {
+        let (cert_pem, key_pem, ca_certs_pem) = settings.load_tls_materials()?;
         let mut builder = ConnectionBuilder::new(
-            &self.server_name,
-            self.server_addr,
+            &settings.server_name,
+            settings.server_addr,
             env!("CARGO_PKG_NAME"),
             env!("CARGO_PKG_VERSION"),
             REQUIRED_REVIEW_VERSION,
             review_protocol::types::Status::Ready,
-            &self.cert_pem,
-            &self.key_pem,
+            &cert_pem,
+            &key_pem,
         )
         .context("failed to create connection builder")?;
 
-        for pem in &self.ca_certs_pem {
+        for pem in &ca_certs_pem {
             let mut reader = std::io::Cursor::new(pem);
             builder
                 .add_root_certs(&mut reader)
                 .context("failed to add root certificates")?;
         }
 
-        let conn = builder
+        Ok(Self { builder })
+    }
+
+    /// Establishes a QUIC/mTLS connection to the Manager and performs the
+    /// initial handshake.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the QUIC connection cannot be established or the
+    /// handshake with the Manager fails.
+    async fn connect(&self) -> Result<review_protocol::client::Connection> {
+        let conn = self
+            .builder
             .connect()
             .await
             .context("failed to connect to Manager")?;
 
-        tracing::info!("Connected to Manager at {}", self.server_addr);
+        tracing::info!("Connected to Manager at {}", conn.remote_addr());
         Ok(conn)
     }
 
@@ -271,13 +260,14 @@ impl review_protocol::request::Handler for RequestHandler {
 
 #[cfg(test)]
 mod tests {
-    use std::net::SocketAddr;
-    use std::sync::Arc;
+    use std::{fs, net::SocketAddr, sync::Arc};
 
     use rcgen::{BasicConstraints, CertificateParams, DnType, IsCa, Issuer, KeyPair};
     use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer};
+    use tempfile::{TempDir, tempdir};
 
     use super::*;
+    use crate::settings::{Config, Settings};
 
     const TEST_PROTOCOL_VERSION: &str = "0.47.0";
     const TEST_BIND_ADDR: &str = "127.0.0.1:0";
@@ -369,6 +359,39 @@ mod tests {
         quinn::Endpoint::server(server_config, addr).expect("server endpoint")
     }
 
+    fn build_test_settings(
+        server_name: &str,
+        server_addr: SocketAddr,
+        cert_pem: &[u8],
+        key_pem: &[u8],
+        ca_certs_pem: &[&[u8]],
+    ) -> (TempDir, Settings) {
+        let dir = tempdir().expect("temp dir");
+
+        let cert_path = dir.path().join("cert.pem");
+        let key_path = dir.path().join("key.pem");
+        fs::write(&cert_path, cert_pem).expect("write cert");
+        fs::write(&key_path, key_pem).expect("write key");
+
+        let mut ca_paths = Vec::with_capacity(ca_certs_pem.len());
+        for (idx, pem) in ca_certs_pem.iter().enumerate() {
+            let path = dir.path().join(format!("ca-{idx}.pem"));
+            fs::write(&path, pem).expect("write ca cert");
+            ca_paths.push(path);
+        }
+
+        let settings = Settings {
+            server_name: server_name.to_string(),
+            server_addr,
+            cert: cert_path,
+            key: key_path,
+            ca_certs: ca_paths,
+            config: Config { log_path: None },
+        };
+
+        (dir, settings)
+    }
+
     /// Sets up a mock Manager and client, performs the handshake, and returns
     /// the server connection, the endpoint (which must be kept alive), and the
     /// connection parameters.
@@ -383,18 +406,18 @@ mod tests {
         let addr: SocketAddr = TEST_BIND_ADDR.parse().expect("addr");
         let endpoint = build_mock_manager_endpoint(&certs, addr);
         let server_addr = endpoint.local_addr().expect("server addr");
-        let ca_certs = vec![
-            certs.root_cert_pem.into_bytes(),
-            certs.inter_cert_pem.into_bytes(),
-        ];
-
-        let conn = Connection::new(
-            "localhost".to_string(),
+        let (_dir, settings) = build_test_settings(
+            "localhost",
             server_addr,
-            certs.client_cert_pem.into_bytes(),
-            certs.client_key_pem.into_bytes(),
-            ca_certs,
+            certs.client_cert_pem.as_bytes(),
+            certs.client_key_pem.as_bytes(),
+            &[
+                certs.root_cert_pem.as_bytes(),
+                certs.inter_cert_pem.as_bytes(),
+            ],
         );
+
+        let conn = Connection::new(&settings).expect("client connection config");
 
         let (server_conn, client_conn) = tokio::join!(
             async {
@@ -428,18 +451,18 @@ mod tests {
         let addr: SocketAddr = TEST_BIND_ADDR.parse().expect("addr");
         let endpoint = build_mock_manager_endpoint(&certs, addr);
         let server_addr = endpoint.local_addr().expect("server addr");
-        let ca_certs = vec![
-            certs.root_cert_pem.into_bytes(),
-            certs.inter_cert_pem.into_bytes(),
-        ];
-
-        let conn = Connection::new(
-            "localhost".to_string(),
+        let (_dir, settings) = build_test_settings(
+            "localhost",
             server_addr,
-            certs.client_cert_pem.into_bytes(),
-            certs.client_key_pem.into_bytes(),
-            ca_certs,
+            certs.client_cert_pem.as_bytes(),
+            certs.client_key_pem.as_bytes(),
+            &[
+                certs.root_cert_pem.as_bytes(),
+                certs.inter_cert_pem.as_bytes(),
+            ],
         );
+
+        let conn = Connection::new(&settings).expect("client connection config");
 
         let ((agent_info, _quinn_conn), conn_result) = tokio::join!(
             async {
@@ -474,14 +497,15 @@ mod tests {
         let endpoint = build_mock_manager_endpoint(&certs, addr);
         let server_addr = endpoint.local_addr().expect("server addr");
         let combined_ca_bundle = format!("{}{}", certs.root_cert_pem, certs.inter_cert_pem);
-
-        let conn = Connection::new(
-            "localhost".to_string(),
+        let (_dir, settings) = build_test_settings(
+            "localhost",
             server_addr,
-            certs.client_cert_pem.into_bytes(),
-            certs.client_key_pem.into_bytes(),
-            vec![combined_ca_bundle.into_bytes()],
+            certs.client_cert_pem.as_bytes(),
+            certs.client_key_pem.as_bytes(),
+            &[combined_ca_bundle.as_bytes()],
         );
+
+        let conn = Connection::new(&settings).expect("client connection config");
 
         let ((agent_info, _quinn_conn), conn_result) = tokio::join!(
             async {
@@ -627,20 +651,18 @@ mod tests {
         let bind_addr: SocketAddr = TEST_BIND_ADDR.parse().expect("bind addr");
         let endpoint = build_mock_manager_endpoint(&certs, bind_addr);
         let addr = endpoint.local_addr().expect("server addr");
-        let ca_certs = vec![
-            certs.root_cert_pem.clone().into_bytes(),
-            certs.inter_cert_pem.clone().into_bytes(),
-        ];
-        let client_cert_pem = certs.client_cert_pem.clone().into_bytes();
-        let client_key_pem = certs.client_key_pem.clone().into_bytes();
-
-        let conn = Connection::new(
-            "localhost".to_string(),
+        let (_dir, settings) = build_test_settings(
+            "localhost",
             addr,
-            client_cert_pem,
-            client_key_pem,
-            ca_certs,
+            certs.client_cert_pem.as_bytes(),
+            certs.client_key_pem.as_bytes(),
+            &[
+                certs.root_cert_pem.as_bytes(),
+                certs.inter_cert_pem.as_bytes(),
+            ],
         );
+
+        let conn = Connection::new(&settings).expect("client connection config");
 
         let (reconnected_tx, reconnected_rx) = oneshot::channel();
 
