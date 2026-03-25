@@ -2,7 +2,7 @@
 //!
 //! This module owns the full connection lifecycle for communicating with the
 //! Manager: connect, run loop, stream accept, reconnect, and dispatch entry.
-//! All request handling is delegated to the [`handlers`](super::handlers) module.
+//! All request handling is delegated to the [`handlers`] module.
 
 use std::time::Duration;
 
@@ -405,8 +405,8 @@ mod tests {
     }
 
     /// Sets up a mock Manager and client, performs the handshake, and returns
-    /// the server connection, the endpoint (which must be kept alive), and the
-    /// connection parameters.
+    /// the client connection, the server connection, and the endpoint (which
+    /// must be kept alive).
     async fn setup_test_connection() -> (
         review_protocol::client::Connection,
         review_protocol::server::Connection,
