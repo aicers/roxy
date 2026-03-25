@@ -335,6 +335,19 @@ mod tests {
 
     /// Creates a QUIC server endpoint configured for mTLS.
     fn build_mock_manager_endpoint(certs: &TestCerts, addr: SocketAddr) -> quinn::Endpoint {
+        build_mock_manager_endpoint_with_chain(
+            certs,
+            addr,
+            vec![certs.server_cert_der.clone(), certs.inter_cert_der.clone()],
+        )
+    }
+
+    /// Creates a QUIC server endpoint with a custom server certificate chain.
+    fn build_mock_manager_endpoint_with_chain(
+        certs: &TestCerts,
+        addr: SocketAddr,
+        server_cert_chain: Vec<CertificateDer<'static>>,
+    ) -> quinn::Endpoint {
         let mut root_store = rustls::RootCertStore::empty();
         root_store
             .add(certs.root_cert_der.clone())
@@ -347,7 +360,6 @@ mod tests {
             .build()
             .expect("client verifier");
 
-        let server_cert_chain = vec![certs.server_cert_der.clone(), certs.inter_cert_der.clone()];
         let server_tls = rustls::ServerConfig::builder()
             .with_client_cert_verifier(client_verifier)
             .with_single_cert(server_cert_chain, certs.server_key_der.clone_key())
@@ -529,6 +541,103 @@ mod tests {
         assert_eq!(agent_info.app_name, env!("CARGO_PKG_NAME"));
         let inner = conn_result.expect("client connection");
         assert_eq!(inner.remote_addr(), server_addr);
+    }
+
+    // -- Tests: chain building with root-only trust store ---------------
+
+    /// Client trusts only the root CA. The server sends `[server, intermediate]`,
+    /// so the client can build the full chain and the handshake succeeds.
+    #[tokio::test]
+    async fn handshake_succeeds_with_root_only_trust_when_peer_sends_intermediate() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+
+        let certs = generate_certs();
+        let addr: SocketAddr = TEST_BIND_ADDR.parse().expect("addr");
+        // Server sends full chain: server cert + intermediate cert
+        let endpoint = build_mock_manager_endpoint_with_chain(
+            &certs,
+            addr,
+            vec![certs.server_cert_der.clone(), certs.inter_cert_der.clone()],
+        );
+        let server_addr = endpoint.local_addr().expect("server addr");
+        // Client trusts only the root CA
+        let (_dir, settings) = build_test_settings(
+            "localhost",
+            server_addr,
+            certs.client_cert_pem.as_bytes(),
+            certs.client_key_pem.as_bytes(),
+            &[certs.root_cert_pem.as_bytes()],
+        );
+
+        let conn = Connection::new(&settings).expect("client connection config");
+
+        let ((_agent_info, _quinn_conn), conn_result) = tokio::join!(
+            async {
+                let incoming = endpoint.accept().await.expect("accept");
+                let quinn_conn = incoming.await.expect("incoming conn");
+                let peer_addr = quinn_conn.remote_address();
+                let version_req = format!(">={TEST_PROTOCOL_VERSION}");
+                let agent_info = review_protocol::server::handshake(
+                    &quinn_conn,
+                    peer_addr,
+                    &version_req,
+                    TEST_PROTOCOL_VERSION,
+                )
+                .await
+                .expect("server handshake");
+                (agent_info, quinn_conn)
+            },
+            conn.connect()
+        );
+
+        conn_result.expect("handshake should succeed when peer sends intermediate");
+    }
+
+    /// Client trusts only the root CA. The server sends `[server]` without the
+    /// intermediate, so the client cannot build the chain and the connection
+    /// fails.
+    #[tokio::test]
+    async fn handshake_fails_with_root_only_trust_when_peer_omits_intermediate() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+
+        let certs = generate_certs();
+        let addr: SocketAddr = TEST_BIND_ADDR.parse().expect("addr");
+        // Server sends only the server cert — no intermediate
+        let endpoint = build_mock_manager_endpoint_with_chain(
+            &certs,
+            addr,
+            vec![certs.server_cert_der.clone()],
+        );
+        let server_addr = endpoint.local_addr().expect("server addr");
+        // Client trusts only the root CA
+        let (_dir, settings) = build_test_settings(
+            "localhost",
+            server_addr,
+            certs.client_cert_pem.as_bytes(),
+            certs.client_key_pem.as_bytes(),
+            &[certs.root_cert_pem.as_bytes()],
+        );
+
+        let conn = Connection::new(&settings).expect("client connection config");
+
+        let conn_result = tokio::time::timeout(Duration::from_secs(5), async {
+            let (_server_result, client_result) = tokio::join!(
+                async {
+                    // Server side: accept and attempt handshake (may fail)
+                    let incoming = endpoint.accept().await.expect("accept");
+                    incoming.await
+                },
+                conn.connect()
+            );
+            client_result
+        })
+        .await
+        .expect("should not hang");
+
+        assert!(
+            conn_result.is_err(),
+            "handshake should fail when peer omits intermediate"
+        );
     }
 
     // -- Test: request/response flow after handshake (ping/echo) ------
