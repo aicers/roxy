@@ -3,6 +3,7 @@
 //! This module consolidates CLI argument parsing and TOML configuration loading.
 
 use std::{
+    fs,
     net::SocketAddr,
     path::{Path, PathBuf},
 };
@@ -74,16 +75,19 @@ impl Config {
 /// Runtime settings for the `roxyd` daemon.
 #[derive(Debug, Clone)]
 pub struct Settings {
-    pub manager_server: String,
+    pub server_name: String,
+    pub server_addr: SocketAddr,
     pub cert: PathBuf,
     pub key: PathBuf,
     pub ca_certs: Vec<PathBuf>,
     pub config: Config,
 }
 
+type TlsMaterials = (Vec<u8>, Vec<u8>, Vec<Vec<u8>>);
+
 impl Settings {
     pub fn from_args(args: &Args, config: Config) -> Result<Self> {
-        let (server_name, server_addr) = args.manager_server.split_once('@').context(
+        let (server_name, server_addr_str) = args.manager_server.split_once('@').context(
             "manager_server must be in the form <server_name>@<server_ip>:<server_port>",
         )?;
 
@@ -91,17 +95,34 @@ impl Settings {
             bail!("manager_server must include a non-empty server name before '@'");
         }
 
-        server_addr
-            .parse::<SocketAddr>()
+        let server_addr: SocketAddr = server_addr_str
+            .parse()
             .context("manager_server must include a valid <server_ip>:<server_port> after '@'")?;
 
         Ok(Self {
-            manager_server: args.manager_server.clone(),
+            server_name: server_name.to_string(),
+            server_addr,
             cert: args.cert.clone(),
             key: args.key.clone(),
             ca_certs: args.ca_certs.clone(),
             config,
         })
+    }
+
+    pub fn load_tls_materials(&self) -> Result<TlsMaterials> {
+        let cert_pem = fs::read(&self.cert)
+            .with_context(|| format!("failed to read cert: {}", self.cert.display()))?;
+        let key_pem = fs::read(&self.key)
+            .with_context(|| format!("failed to read key: {}", self.key.display()))?;
+
+        let mut ca_certs_pem = Vec::with_capacity(self.ca_certs.len());
+        for ca_path in &self.ca_certs {
+            let pem = fs::read(ca_path)
+                .with_context(|| format!("failed to read CA cert: {}", ca_path.display()))?;
+            ca_certs_pem.push(pem);
+        }
+
+        Ok((cert_pem, key_pem, ca_certs_pem))
     }
 
     pub fn log_path(&self) -> Option<&std::path::Path> {
@@ -244,18 +265,27 @@ mod tests {
         }
     }
 
+    fn write_temp_file(contents: &[u8]) -> NamedTempFile {
+        let mut file = Builder::new()
+            .tempfile()
+            .expect("Failed to create temp file");
+        file.write_all(contents)
+            .expect("Failed to write temp file contents");
+        file
+    }
+
     #[test]
     fn from_args_accepts_valid_manager_server() {
         let args = sample_args("manager@127.0.0.1:4433");
-        let settings = Settings::from_args(
-            &args,
-            Config {
-                log_path: Some(PathBuf::from("/tmp/roxyd.log")),
-            },
-        )
-        .expect("Expected valid manager_server to pass validation");
 
-        assert_eq!(settings.manager_server, "manager@127.0.0.1:4433");
+        let settings = Settings::from_args(&args, Config { log_path: None })
+            .expect("Expected valid manager_server to pass validation");
+
+        assert_eq!(settings.server_name, "manager");
+        assert_eq!(
+            settings.server_addr,
+            "127.0.0.1:4433".parse().expect("valid socket addr")
+        );
     }
 
     #[test]
@@ -295,5 +325,26 @@ mod tests {
                 .contains("manager_server must include a non-empty server name"),
             "Unexpected error message: {err}"
         );
+    }
+
+    #[test]
+    fn load_tls_materials_reads_pem_files() {
+        let cert = write_temp_file(b"cert");
+        let key = write_temp_file(b"key");
+        let ca = write_temp_file(b"ca");
+        let mut args = sample_args("manager@127.0.0.1:4433");
+        args.cert = cert.path().to_path_buf();
+        args.key = key.path().to_path_buf();
+        args.ca_certs = vec![ca.path().to_path_buf()];
+        let settings = Settings::from_args(&args, Config { log_path: None })
+            .expect("Expected valid manager_server to pass validation");
+
+        let (cert_pem, key_pem, ca_certs_pem) = settings
+            .load_tls_materials()
+            .expect("Expected PEM files to load");
+
+        assert_eq!(cert_pem, b"cert");
+        assert_eq!(key_pem, b"key");
+        assert_eq!(ca_certs_pem, vec![b"ca".to_vec()]);
     }
 }
