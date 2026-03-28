@@ -1,4 +1,9 @@
-pub(crate) mod process_list;
-pub(crate) mod reboot;
-pub(crate) mod resource_usage;
-pub(crate) mod shutdown;
+pub(crate) mod hostname;
+pub(crate) mod logging;
+pub(crate) mod network_interface;
+pub(crate) mod observation;
+pub(crate) mod power;
+pub(crate) mod remote_access;
+pub(crate) mod service;
+pub(crate) mod time_sync;
+pub(crate) mod version;
