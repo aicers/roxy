@@ -8,6 +8,13 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use review_protocol::client::ConnectionBuilder;
+use review_protocol::types::node::{
+    NodeHostnameRequest, NodeHostnameResponse, NodeLoggingRequest, NodeLoggingResponse,
+    NodeNetworkInterfaceRequest, NodeNetworkInterfaceResponse, NodeObservationRequest,
+    NodeObservationResponse, NodePowerRequest, NodePowerResponse, NodeRemoteAccessRequest,
+    NodeRemoteAccessResponse, NodeServiceRequest, NodeServiceResponse, NodeTimeSyncRequest,
+    NodeTimeSyncResponse, NodeVersionRequest, NodeVersionResponse,
+};
 
 use super::{handlers, settings::Settings};
 
@@ -129,14 +136,13 @@ impl Connection {
 /// them to the appropriate handler.
 ///
 /// The local dispatch contract is implemented via [`RequestHandler`], which
-/// maps the review-protocol handler callbacks to the roxyd handlers:
+/// maps the review-protocol handler callbacks to grouped roxyd handlers
+/// under [`handlers`] (e.g. `node_power` → [`handlers::power`],
+/// `node_observation` → [`handlers::observation`]).
 ///
-/// - `RequestCode::Reboot` → [`handlers::reboot`]
-/// - `RequestCode::Shutdown` → [`handlers::shutdown`]
-/// - `RequestCode::ResourceUsage` → [`handlers::resource_usage`]
-/// - `RequestCode::ProcessList` → [`handlers::process_list`]
-/// - `RequestCode::EchoRequest` → success response from `review-protocol`
-/// - All other codes → explicit `unimplemented!()`
+/// Legacy flat methods (`reboot`, `shutdown`, `process_list`,
+/// `resource_usage`) are compatibility adapters that delegate through the
+/// grouped handlers.
 ///
 /// # Errors
 ///
@@ -151,31 +157,121 @@ async fn dispatch(send: &mut quinn::SendStream, recv: &mut quinn::RecvStream) ->
 /// Request handler that maps review-protocol requests into roxyd handlers.
 ///
 /// roxyd is assumed to run with sudo privilege from startup; there is no
-/// privileged vs non-privileged split. The required handlers are
-/// scaffolding-only (`unimplemented!()`). `EchoRequest` is handled by
-/// `review-protocol`; all other request codes fail explicitly with
-/// `unimplemented!()`.
+/// privileged vs non-privileged split.
+///
+/// The grouped `node_*` methods are the canonical internal interface and
+/// delegate to the corresponding handler module under [`handlers`].
+/// The legacy flat methods (`reboot`, `shutdown`, `process_list`,
+/// `resource_usage`) are temporary protocol-compatibility adapters that
+/// route through the grouped handlers.
 struct RequestHandler;
 
 #[async_trait::async_trait]
 impl review_protocol::request::Handler for RequestHandler {
+    // -- Grouped node handlers (canonical) --------------------------------
+
+    async fn node_service(
+        &mut self,
+        req: NodeServiceRequest,
+    ) -> Result<NodeServiceResponse, String> {
+        handlers::service::handle(req).await
+    }
+
+    async fn node_hostname(
+        &mut self,
+        req: NodeHostnameRequest,
+    ) -> Result<NodeHostnameResponse, String> {
+        handlers::hostname::handle(req).await
+    }
+
+    async fn node_time_sync(
+        &mut self,
+        req: NodeTimeSyncRequest,
+    ) -> Result<NodeTimeSyncResponse, String> {
+        handlers::time_sync::handle(req).await
+    }
+
+    async fn node_logging(
+        &mut self,
+        req: NodeLoggingRequest,
+    ) -> Result<NodeLoggingResponse, String> {
+        handlers::logging::handle(req).await
+    }
+
+    async fn node_remote_access(
+        &mut self,
+        req: NodeRemoteAccessRequest,
+    ) -> Result<NodeRemoteAccessResponse, String> {
+        handlers::remote_access::handle(req).await
+    }
+
+    async fn node_power(&mut self, req: NodePowerRequest) -> Result<NodePowerResponse, String> {
+        handlers::power::handle(req).await
+    }
+
+    async fn node_observation(
+        &mut self,
+        req: NodeObservationRequest,
+    ) -> Result<NodeObservationResponse, String> {
+        handlers::observation::handle(req).await
+    }
+
+    async fn node_network_interface(
+        &mut self,
+        req: NodeNetworkInterfaceRequest,
+    ) -> Result<NodeNetworkInterfaceResponse, String> {
+        handlers::network_interface::handle(req).await
+    }
+
+    async fn node_version(
+        &mut self,
+        req: NodeVersionRequest,
+    ) -> Result<NodeVersionResponse, String> {
+        handlers::version::handle(req).await
+    }
+
+    // -- Legacy flat methods (compatibility adapters) ----------------------
+    //
+    // These delegate through the grouped node handlers so that the new
+    // handler modules are the single source of truth. They will be removed
+    // once the Manager switches fully to the `node_*` wire format.
+
     async fn reboot(&mut self) -> Result<(), String> {
-        handlers::reboot::handle().await
+        self.node_power(NodePowerRequest::Reboot).await.map(|_| ())
     }
 
     async fn shutdown(&mut self) -> Result<(), String> {
-        handlers::shutdown::handle().await
+        self.node_power(NodePowerRequest::Shutdown)
+            .await
+            .map(|_| ())
     }
 
     async fn resource_usage(
         &mut self,
     ) -> Result<(String, review_protocol::types::ResourceUsage), String> {
-        handlers::resource_usage::handle().await
+        match self
+            .node_observation(NodeObservationRequest::ResourceUsage)
+            .await?
+        {
+            NodeObservationResponse::ResourceUsage {
+                hostname,
+                resource_usage,
+            } => Ok((hostname, resource_usage)),
+            other => Err(format!("unexpected observation response: {other:?}")),
+        }
     }
 
     async fn process_list(&mut self) -> Result<Vec<review_protocol::types::Process>, String> {
-        handlers::process_list::handle().await
+        match self
+            .node_observation(NodeObservationRequest::ProcessList)
+            .await?
+        {
+            NodeObservationResponse::ProcessList { processes } => Ok(processes),
+            other => Err(format!("unexpected observation response: {other:?}")),
+        }
     }
+
+    // -- Unsupported flat methods -----------------------------------------
 
     async fn dns_start(&mut self) -> Result<(), String> {
         unimplemented!("DnsStart not supported by roxyd")

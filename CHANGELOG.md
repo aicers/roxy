@@ -17,6 +17,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Add TOML configuration file support for `roxyd` for log output settings.
   Connection details (Manager address, cert/key, CA certs) are provided via CLI
   arguments. Log output configuration can be overridden using `ROXYD_LOG_PATH`.
+- Scaffold grouped `node_*` handler modules for `roxyd` matching the
+  `review-protocol` 0.17.0 node API (`service`, `hostname`,
+  `time_sync`, `logging`, `remote_access`, `power`, `observation`,
+  `network_interface`, `version`). Legacy flat methods (`reboot`,
+  `shutdown`, `process_list`, `resource_usage`) now delegate through
+  the grouped handlers as compatibility adapters.
 
 ### Fixed
 
