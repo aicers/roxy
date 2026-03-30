@@ -12,7 +12,19 @@ use review_protocol::types::node::{NodeServiceRequest, NodeServiceResponse};
 ///
 /// Always panics — scaffolding only, not yet implemented.
 #[allow(clippy::unused_async)]
-pub async fn handle(_req: NodeServiceRequest) -> Result<NodeServiceResponse, String> {
-    // TODO: implement service-control mapping
-    unimplemented!("node_service handler not yet implemented")
+pub async fn handle(req: NodeServiceRequest) -> Result<NodeServiceResponse, String> {
+    match req {
+        NodeServiceRequest::Start { .. } => {
+            unimplemented!("NodeServiceRequest::Start")
+        }
+        NodeServiceRequest::Stop { .. } => {
+            unimplemented!("NodeServiceRequest::Stop")
+        }
+        NodeServiceRequest::Status { .. } => {
+            unimplemented!("NodeServiceRequest::Status")
+        }
+        NodeServiceRequest::Restart { .. } => {
+            unimplemented!("NodeServiceRequest::Restart")
+        }
+    }
 }

@@ -13,8 +13,23 @@ use review_protocol::types::node::{NodeNetworkInterfaceRequest, NodeNetworkInter
 /// Always panics — scaffolding only, not yet implemented.
 #[allow(clippy::unused_async)]
 pub async fn handle(
-    _req: NodeNetworkInterfaceRequest,
+    req: NodeNetworkInterfaceRequest,
 ) -> Result<NodeNetworkInterfaceResponse, String> {
-    // TODO: implement network-interface mapping
-    unimplemented!("node_network_interface handler not yet implemented")
+    match req {
+        NodeNetworkInterfaceRequest::List { .. } => {
+            unimplemented!("NodeNetworkInterfaceRequest::List")
+        }
+        NodeNetworkInterfaceRequest::Get { .. } => {
+            unimplemented!("NodeNetworkInterfaceRequest::Get")
+        }
+        NodeNetworkInterfaceRequest::ResetConfig { .. } => {
+            unimplemented!("NodeNetworkInterfaceRequest::ResetConfig")
+        }
+        NodeNetworkInterfaceRequest::Set { .. } => {
+            unimplemented!("NodeNetworkInterfaceRequest::Set")
+        }
+        NodeNetworkInterfaceRequest::Remove { .. } => {
+            unimplemented!("NodeNetworkInterfaceRequest::Remove")
+        }
+    }
 }

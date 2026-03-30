@@ -12,7 +12,19 @@ use review_protocol::types::node::{NodeLoggingRequest, NodeLoggingResponse};
 ///
 /// Always panics — scaffolding only, not yet implemented.
 #[allow(clippy::unused_async)]
-pub async fn handle(_req: NodeLoggingRequest) -> Result<NodeLoggingResponse, String> {
-    // TODO: implement logging-config mapping
-    unimplemented!("node_logging handler not yet implemented")
+pub async fn handle(req: NodeLoggingRequest) -> Result<NodeLoggingResponse, String> {
+    match req {
+        NodeLoggingRequest::Get => {
+            unimplemented!("NodeLoggingRequest::Get")
+        }
+        NodeLoggingRequest::Set { .. } => {
+            unimplemented!("NodeLoggingRequest::Set")
+        }
+        NodeLoggingRequest::Clear => {
+            unimplemented!("NodeLoggingRequest::Clear")
+        }
+        NodeLoggingRequest::Restart => {
+            unimplemented!("NodeLoggingRequest::Restart")
+        }
+    }
 }

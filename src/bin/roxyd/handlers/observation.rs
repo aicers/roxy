@@ -12,7 +12,16 @@ use review_protocol::types::node::{NodeObservationRequest, NodeObservationRespon
 ///
 /// Always panics — scaffolding only, not yet implemented.
 #[allow(clippy::unused_async)]
-pub async fn handle(_req: NodeObservationRequest) -> Result<NodeObservationResponse, String> {
-    // TODO: implement observation mapping
-    unimplemented!("node_observation handler not yet implemented")
+pub async fn handle(req: NodeObservationRequest) -> Result<NodeObservationResponse, String> {
+    match req {
+        NodeObservationRequest::ProcessList => {
+            unimplemented!("NodeObservationRequest::ProcessList")
+        }
+        NodeObservationRequest::ResourceUsage => {
+            unimplemented!("NodeObservationRequest::ResourceUsage")
+        }
+        NodeObservationRequest::Uptime => {
+            unimplemented!("NodeObservationRequest::Uptime")
+        }
+    }
 }

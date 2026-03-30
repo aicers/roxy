@@ -12,7 +12,19 @@ use review_protocol::types::node::{NodePowerRequest, NodePowerResponse};
 ///
 /// Always panics — scaffolding only, not yet implemented.
 #[allow(clippy::unused_async)]
-pub async fn handle(_req: NodePowerRequest) -> Result<NodePowerResponse, String> {
-    // TODO: implement power-control mapping
-    unimplemented!("node_power handler not yet implemented")
+pub async fn handle(req: NodePowerRequest) -> Result<NodePowerResponse, String> {
+    match req {
+        NodePowerRequest::Reboot => {
+            unimplemented!("NodePowerRequest::Reboot")
+        }
+        NodePowerRequest::Shutdown => {
+            unimplemented!("NodePowerRequest::Shutdown")
+        }
+        NodePowerRequest::GracefulReboot => {
+            unimplemented!("NodePowerRequest::GracefulReboot")
+        }
+        NodePowerRequest::GracefulShutdown => {
+            unimplemented!("NodePowerRequest::GracefulShutdown")
+        }
+    }
 }

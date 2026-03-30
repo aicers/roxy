@@ -12,7 +12,13 @@ use review_protocol::types::node::{NodeHostnameRequest, NodeHostnameResponse};
 ///
 /// Always panics — scaffolding only, not yet implemented.
 #[allow(clippy::unused_async)]
-pub async fn handle(_req: NodeHostnameRequest) -> Result<NodeHostnameResponse, String> {
-    // TODO: implement hostname management mapping
-    unimplemented!("node_hostname handler not yet implemented")
+pub async fn handle(req: NodeHostnameRequest) -> Result<NodeHostnameResponse, String> {
+    match req {
+        NodeHostnameRequest::Get => {
+            unimplemented!("NodeHostnameRequest::Get")
+        }
+        NodeHostnameRequest::Set { .. } => {
+            unimplemented!("NodeHostnameRequest::Set")
+        }
+    }
 }

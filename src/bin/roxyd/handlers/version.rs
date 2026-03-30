@@ -12,7 +12,16 @@ use review_protocol::types::node::{NodeVersionRequest, NodeVersionResponse};
 ///
 /// Always panics — scaffolding only, not yet implemented.
 #[allow(clippy::unused_async)]
-pub async fn handle(_req: NodeVersionRequest) -> Result<NodeVersionResponse, String> {
-    // TODO: implement version-management mapping
-    unimplemented!("node_version handler not yet implemented")
+pub async fn handle(req: NodeVersionRequest) -> Result<NodeVersionResponse, String> {
+    match req {
+        NodeVersionRequest::Get => {
+            unimplemented!("NodeVersionRequest::Get")
+        }
+        NodeVersionRequest::SetOsVersion { .. } => {
+            unimplemented!("NodeVersionRequest::SetOsVersion")
+        }
+        NodeVersionRequest::SetProductVersion { .. } => {
+            unimplemented!("NodeVersionRequest::SetProductVersion")
+        }
+    }
 }

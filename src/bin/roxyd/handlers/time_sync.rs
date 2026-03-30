@@ -12,7 +12,22 @@ use review_protocol::types::node::{NodeTimeSyncRequest, NodeTimeSyncResponse};
 ///
 /// Always panics — scaffolding only, not yet implemented.
 #[allow(clippy::unused_async)]
-pub async fn handle(_req: NodeTimeSyncRequest) -> Result<NodeTimeSyncResponse, String> {
-    // TODO: implement time-sync mapping
-    unimplemented!("node_time_sync handler not yet implemented")
+pub async fn handle(req: NodeTimeSyncRequest) -> Result<NodeTimeSyncResponse, String> {
+    match req {
+        NodeTimeSyncRequest::Get => {
+            unimplemented!("NodeTimeSyncRequest::Get")
+        }
+        NodeTimeSyncRequest::Set { .. } => {
+            unimplemented!("NodeTimeSyncRequest::Set")
+        }
+        NodeTimeSyncRequest::Enable => {
+            unimplemented!("NodeTimeSyncRequest::Enable")
+        }
+        NodeTimeSyncRequest::Disable => {
+            unimplemented!("NodeTimeSyncRequest::Disable")
+        }
+        NodeTimeSyncRequest::Status => {
+            unimplemented!("NodeTimeSyncRequest::Status")
+        }
+    }
 }

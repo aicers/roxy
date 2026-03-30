@@ -12,7 +12,16 @@ use review_protocol::types::node::{NodeRemoteAccessRequest, NodeRemoteAccessResp
 ///
 /// Always panics — scaffolding only, not yet implemented.
 #[allow(clippy::unused_async)]
-pub async fn handle(_req: NodeRemoteAccessRequest) -> Result<NodeRemoteAccessResponse, String> {
-    // TODO: implement remote-access mapping
-    unimplemented!("node_remote_access handler not yet implemented")
+pub async fn handle(req: NodeRemoteAccessRequest) -> Result<NodeRemoteAccessResponse, String> {
+    match req {
+        NodeRemoteAccessRequest::Get => {
+            unimplemented!("NodeRemoteAccessRequest::Get")
+        }
+        NodeRemoteAccessRequest::Set { .. } => {
+            unimplemented!("NodeRemoteAccessRequest::Set")
+        }
+        NodeRemoteAccessRequest::Restart => {
+            unimplemented!("NodeRemoteAccessRequest::Restart")
+        }
+    }
 }
