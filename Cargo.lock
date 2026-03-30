@@ -1214,7 +1214,7 @@ dependencies = [
  "js-sys",
  "log",
  "wasm-bindgen",
- "windows-core 0.62.2",
+ "windows-core 0.57.0",
 ]
 
 [[package]]
@@ -2315,8 +2315,8 @@ checksum = "dc897dd8d9e8bd1ed8cdad82b5966c3e0ecae09fb1907d58efaa013543185d0a"
 
 [[package]]
 name = "review-protocol"
-version = "0.17.0"
-source = "git+https://github.com/petabi/review-protocol.git?tag=0.17.0#1cd3c9febe78d6d47bdab255156aff6f61ba4af3"
+version = "0.18.0"
+source = "git+https://github.com/petabi/review-protocol.git?tag=0.18.0#0412c82b1fdbd18bafccca9926f6efc567cacffc"
 dependencies = [
  "anyhow",
  "async-trait",
