@@ -34,7 +34,7 @@ pub struct NodeRequest {
 impl NodeRequest {
     /// # Arguments
     ///
-    /// * cmd<T>: command arguments. T: type of arguments
+    /// * `cmd<T>`: command arguments. T: type of arguments
     ///
     /// # Errors
     ///
