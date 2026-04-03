@@ -246,12 +246,18 @@ impl review_protocol::request::Handler for RequestHandler {
     // once the Manager switches fully to the `node_*` wire format.
 
     async fn reboot(&mut self) -> Result<(), String> {
-        tracing::info!(legacy_method = "reboot", "Dispatching legacy request via node_power");
+        tracing::info!(
+            legacy_method = "reboot",
+            "Dispatching legacy request via node_power"
+        );
         self.node_power(NodePowerRequest::Reboot).await.map(|_| ())
     }
 
     async fn shutdown(&mut self) -> Result<(), String> {
-        tracing::info!(legacy_method = "shutdown", "Dispatching legacy request via node_power");
+        tracing::info!(
+            legacy_method = "shutdown",
+            "Dispatching legacy request via node_power"
+        );
         self.node_power(NodePowerRequest::Shutdown)
             .await
             .map(|_| ())
