@@ -8,6 +8,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Add per-request tracing for `roxyd` request dispatch. Incoming
+  requests now log the handler group and request variant before
+  delegation. Legacy flat methods log their dispatch path.
+  Shutdown/termination lifecycle is logged symmetrically with startup.
 - Add `roxyd` binary entrypoint as a new implementation path for QUIC/mTLS
   connectivity with Manager. This is a skeleton that coexists with the legacy
   `roxy` binary and wires the review-protocol connection lifecycle plus

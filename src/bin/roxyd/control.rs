@@ -174,6 +174,7 @@ impl review_protocol::request::Handler for RequestHandler {
         &mut self,
         req: NodeServiceRequest,
     ) -> Result<NodeServiceResponse, String> {
+        tracing::info!(handler_group = "node_service", request = ?req, "Dispatching request");
         handlers::service::handle(req).await
     }
 
@@ -181,6 +182,7 @@ impl review_protocol::request::Handler for RequestHandler {
         &mut self,
         req: NodeHostnameRequest,
     ) -> Result<NodeHostnameResponse, String> {
+        tracing::info!(handler_group = "node_hostname", request = ?req, "Dispatching request");
         handlers::hostname::handle(req).await
     }
 
@@ -188,6 +190,7 @@ impl review_protocol::request::Handler for RequestHandler {
         &mut self,
         req: NodeTimeSyncRequest,
     ) -> Result<NodeTimeSyncResponse, String> {
+        tracing::info!(handler_group = "node_time_sync", request = ?req, "Dispatching request");
         handlers::time_sync::handle(req).await
     }
 
@@ -195,6 +198,7 @@ impl review_protocol::request::Handler for RequestHandler {
         &mut self,
         req: NodeLoggingRequest,
     ) -> Result<NodeLoggingResponse, String> {
+        tracing::info!(handler_group = "node_logging", request = ?req, "Dispatching request");
         handlers::logging::handle(req).await
     }
 
@@ -202,10 +206,12 @@ impl review_protocol::request::Handler for RequestHandler {
         &mut self,
         req: NodeRemoteAccessRequest,
     ) -> Result<NodeRemoteAccessResponse, String> {
+        tracing::info!(handler_group = "node_remote_access", request = ?req, "Dispatching request");
         handlers::remote_access::handle(req).await
     }
 
     async fn node_power(&mut self, req: NodePowerRequest) -> Result<NodePowerResponse, String> {
+        tracing::info!(handler_group = "node_power", request = ?req, "Dispatching request");
         handlers::power::handle(req).await
     }
 
@@ -213,6 +219,7 @@ impl review_protocol::request::Handler for RequestHandler {
         &mut self,
         req: NodeObservationRequest,
     ) -> Result<NodeObservationResponse, String> {
+        tracing::info!(handler_group = "node_observation", request = ?req, "Dispatching request");
         handlers::observation::handle(req).await
     }
 
@@ -220,6 +227,7 @@ impl review_protocol::request::Handler for RequestHandler {
         &mut self,
         req: NodeNetworkInterfaceRequest,
     ) -> Result<NodeNetworkInterfaceResponse, String> {
+        tracing::info!(handler_group = "node_network_interface", request = ?req, "Dispatching request");
         handlers::network_interface::handle(req).await
     }
 
@@ -227,6 +235,7 @@ impl review_protocol::request::Handler for RequestHandler {
         &mut self,
         req: NodeVersionRequest,
     ) -> Result<NodeVersionResponse, String> {
+        tracing::info!(handler_group = "node_version", request = ?req, "Dispatching request");
         handlers::version::handle(req).await
     }
 
@@ -237,10 +246,12 @@ impl review_protocol::request::Handler for RequestHandler {
     // once the Manager switches fully to the `node_*` wire format.
 
     async fn reboot(&mut self) -> Result<(), String> {
+        tracing::info!(legacy_method = "reboot", "Dispatching legacy request via node_power");
         self.node_power(NodePowerRequest::Reboot).await.map(|_| ())
     }
 
     async fn shutdown(&mut self) -> Result<(), String> {
+        tracing::info!(legacy_method = "shutdown", "Dispatching legacy request via node_power");
         self.node_power(NodePowerRequest::Shutdown)
             .await
             .map(|_| ())
@@ -249,6 +260,10 @@ impl review_protocol::request::Handler for RequestHandler {
     async fn resource_usage(
         &mut self,
     ) -> Result<(String, review_protocol::types::ResourceUsage), String> {
+        tracing::info!(
+            legacy_method = "resource_usage",
+            "Dispatching legacy request via node_observation"
+        );
         match self
             .node_observation(NodeObservationRequest::ResourceUsage)
             .await?
@@ -262,6 +277,10 @@ impl review_protocol::request::Handler for RequestHandler {
     }
 
     async fn process_list(&mut self) -> Result<Vec<review_protocol::types::Process>, String> {
+        tracing::info!(
+            legacy_method = "process_list",
+            "Dispatching legacy request via node_observation"
+        );
         match self
             .node_observation(NodeObservationRequest::ProcessList)
             .await?

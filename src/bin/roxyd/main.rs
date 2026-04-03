@@ -120,5 +120,7 @@ async fn run(settings: &Settings) -> Result<()> {
 
     let conn = control::Connection::new(settings)?;
 
-    conn.run().await
+    let result = conn.run().await;
+    tracing::info!("Roxyd shutting down");
+    result
 }
