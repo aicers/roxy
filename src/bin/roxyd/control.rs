@@ -154,19 +154,6 @@ async fn dispatch(send: &mut quinn::SendStream, recv: &mut quinn::RecvStream) ->
         .map_err(|e| anyhow::anyhow!("{e}"))
 }
 
-/// Extracts the enum variant name from a `Debug` representation.
-///
-/// Returns the leading identifier before any `(` or `{` delimiter, which
-/// corresponds to the variant name for typical `#[derive(Debug)]` enums.
-fn variant_name<T: std::fmt::Debug>(val: &T) -> String {
-    let debug = format!("{val:?}");
-    debug
-        .split(['(', ' ', '{'])
-        .next()
-        .unwrap_or(&debug)
-        .to_string()
-}
-
 /// Request handler that maps review-protocol requests into roxyd handlers.
 ///
 /// roxyd is assumed to run with sudo privilege from startup; there is no
@@ -187,7 +174,7 @@ impl review_protocol::request::Handler for RequestHandler {
         &mut self,
         req: NodeServiceRequest,
     ) -> Result<NodeServiceResponse, String> {
-        tracing::info!(handler_group = "node_service", request = %variant_name(&req), "Dispatching request");
+        tracing::info!(handler_group = "node_service", request = %req.service_id(), "Dispatching request");
         handlers::service::handle(req).await
     }
 
@@ -195,7 +182,7 @@ impl review_protocol::request::Handler for RequestHandler {
         &mut self,
         req: NodeHostnameRequest,
     ) -> Result<NodeHostnameResponse, String> {
-        tracing::info!(handler_group = "node_hostname", request = %variant_name(&req), "Dispatching request");
+        tracing::info!(handler_group = "node_hostname", request = %req.service_id(), "Dispatching request");
         handlers::hostname::handle(req).await
     }
 
@@ -203,7 +190,7 @@ impl review_protocol::request::Handler for RequestHandler {
         &mut self,
         req: NodeTimeSyncRequest,
     ) -> Result<NodeTimeSyncResponse, String> {
-        tracing::info!(handler_group = "node_time_sync", request = %variant_name(&req), "Dispatching request");
+        tracing::info!(handler_group = "node_time_sync", request = %req.service_id(), "Dispatching request");
         handlers::time_sync::handle(req).await
     }
 
@@ -211,7 +198,7 @@ impl review_protocol::request::Handler for RequestHandler {
         &mut self,
         req: NodeLoggingRequest,
     ) -> Result<NodeLoggingResponse, String> {
-        tracing::info!(handler_group = "node_logging", request = %variant_name(&req), "Dispatching request");
+        tracing::info!(handler_group = "node_logging", request = %req.service_id(), "Dispatching request");
         handlers::logging::handle(req).await
     }
 
@@ -219,12 +206,12 @@ impl review_protocol::request::Handler for RequestHandler {
         &mut self,
         req: NodeRemoteAccessRequest,
     ) -> Result<NodeRemoteAccessResponse, String> {
-        tracing::info!(handler_group = "node_remote_access", request = %variant_name(&req), "Dispatching request");
+        tracing::info!(handler_group = "node_remote_access", request = %req.service_id(), "Dispatching request");
         handlers::remote_access::handle(req).await
     }
 
     async fn node_power(&mut self, req: NodePowerRequest) -> Result<NodePowerResponse, String> {
-        tracing::info!(handler_group = "node_power", request = %variant_name(&req), "Dispatching request");
+        tracing::info!(handler_group = "node_power", request = %req.service_id(), "Dispatching request");
         handlers::power::handle(req).await
     }
 
@@ -232,7 +219,7 @@ impl review_protocol::request::Handler for RequestHandler {
         &mut self,
         req: NodeObservationRequest,
     ) -> Result<NodeObservationResponse, String> {
-        tracing::info!(handler_group = "node_observation", request = %variant_name(&req), "Dispatching request");
+        tracing::info!(handler_group = "node_observation", request = %req.service_id(), "Dispatching request");
         handlers::observation::handle(req).await
     }
 
@@ -240,7 +227,7 @@ impl review_protocol::request::Handler for RequestHandler {
         &mut self,
         req: NodeNetworkInterfaceRequest,
     ) -> Result<NodeNetworkInterfaceResponse, String> {
-        tracing::info!(handler_group = "node_network_interface", request = %variant_name(&req), "Dispatching request");
+        tracing::info!(handler_group = "node_network_interface", request = %req.service_id(), "Dispatching request");
         handlers::network_interface::handle(req).await
     }
 
@@ -248,7 +235,7 @@ impl review_protocol::request::Handler for RequestHandler {
         &mut self,
         req: NodeVersionRequest,
     ) -> Result<NodeVersionResponse, String> {
-        tracing::info!(handler_group = "node_version", request = %variant_name(&req), "Dispatching request");
+        tracing::info!(handler_group = "node_version", request = %req.service_id(), "Dispatching request");
         handlers::version::handle(req).await
     }
 
