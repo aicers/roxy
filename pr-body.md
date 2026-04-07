@@ -1,9 +1,7 @@
 # Summary
 
-- Log handler group and request variant before delegation
+- Log handler group and request variant name before delegation
   in all grouped `node_*` handlers and legacy flat methods
-- Add shutdown lifecycle log in `main.rs` symmetric with
-  startup
 - All 19 existing `roxyd` tests pass; no business-logic
   changes
 
