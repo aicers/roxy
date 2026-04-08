@@ -8,6 +8,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Add tracing in `roxyd` for incoming `review-protocol` request dispatch, logging
+  the selected handler group and request identifier.
 - Add `roxyd` binary entrypoint as a new implementation path for QUIC/mTLS
   connectivity with Manager. This is a skeleton that coexists with the legacy
   `roxy` binary and wires the review-protocol connection lifecycle plus
