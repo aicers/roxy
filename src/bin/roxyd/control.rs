@@ -15,11 +15,61 @@ use review_protocol::types::node::{
     NodeRemoteAccessResponse, NodeServiceRequest, NodeServiceResponse, NodeTimeSyncRequest,
     NodeTimeSyncResponse, NodeVersionRequest, NodeVersionResponse,
 };
+use tokio::sync::watch;
 
 use super::{handlers, settings::Settings};
 
 /// The review-protocol version required by this client.
 const REQUIRED_REVIEW_VERSION: &str = "0.47.0";
+
+/// A cloneable handle that coordinates graceful shutdown across tasks.
+///
+/// Call [`trigger`](Self::trigger) to initiate shutdown, and
+/// [`recv`](Self::recv) to obtain a receiver that resolves when
+/// shutdown has been requested.
+#[derive(Clone)]
+pub(crate) struct Shutdown {
+    tx: watch::Sender<bool>,
+}
+
+impl Shutdown {
+    /// Creates a new shutdown coordinator.
+    pub fn new() -> Self {
+        let (tx, _) = watch::channel(false);
+        Self { tx }
+    }
+
+    /// Signals all receivers that shutdown has been requested.
+    ///
+    /// This method is idempotent: calling it more than once is safe.
+    pub fn trigger(&self) {
+        let _ = self.tx.send(true);
+    }
+
+    /// Returns a receiver that completes when shutdown is requested.
+    pub fn recv(&self) -> ShutdownRecv {
+        ShutdownRecv {
+            rx: self.tx.subscribe(),
+        }
+    }
+}
+
+/// A receiver that resolves when shutdown has been requested.
+pub(crate) struct ShutdownRecv {
+    rx: watch::Receiver<bool>,
+}
+
+impl ShutdownRecv {
+    /// Waits until shutdown is requested.
+    pub async fn wait(&mut self) {
+        // If already signalled, return immediately.
+        if *self.rx.borrow() {
+            return;
+        }
+        // Wait for the value to change to true.
+        let _ = self.rx.wait_for(|&v| v).await;
+    }
+}
 
 /// A connection to the Manager via review-protocol.
 ///
@@ -92,30 +142,50 @@ impl Connection {
     /// and dispatches each to the request handler. When the connection is
     /// closed by the Manager or an error occurs, it reconnects automatically.
     ///
+    /// The loop exits cleanly when `shutdown` is signalled.
+    ///
     /// # Errors
     ///
     /// Returns an error if the initial connection cannot be established.
     /// Subsequent reconnection failures are logged and retried.
-    pub async fn run(&self) -> Result<()> {
+    pub async fn run(&self, mut shutdown: ShutdownRecv) -> Result<()> {
         let mut inner = self.connect().await?;
         loop {
             tracing::info!("Starting message processing loop");
-            loop {
-                let (mut send, mut recv) = match inner.accept_bi().await {
-                    Ok(streams) => streams,
-                    Err(e) => {
-                        tracing::info!("Connection to Manager closed: {e}");
-                        break;
+            let shutdown_requested = loop {
+                tokio::select! {
+                    result = inner.accept_bi() => {
+                        match result {
+                            Ok((mut send, mut recv)) => {
+                                if let Err(e) = dispatch(&mut send, &mut recv).await {
+                                    tracing::error!("Request handling failed: {e}");
+                                }
+                            }
+                            Err(e) => {
+                                tracing::info!("Connection to Manager closed: {e}");
+                                break false;
+                            }
+                        }
                     }
-                };
-
-                if let Err(e) = dispatch(&mut send, &mut recv).await {
-                    tracing::error!("Request handling failed: {e}");
+                    () = shutdown.wait() => {
+                        break true;
+                    }
                 }
+            };
+
+            if shutdown_requested {
+                return Ok(());
             }
 
             tracing::info!("Reconnecting to Manager...");
-            inner = self.reconnect_loop().await;
+            tokio::select! {
+                conn = self.reconnect_loop() => {
+                    inner = conn;
+                }
+                () = shutdown.wait() => {
+                    return Ok(());
+                }
+            }
         }
     }
 
@@ -893,6 +963,7 @@ mod tests {
         );
 
         let conn = Connection::new(&settings).expect("client connection config");
+        let shutdown = Shutdown::new();
 
         let (reconnected_tx, reconnected_rx) = oneshot::channel();
 
@@ -935,21 +1006,157 @@ mod tests {
             std::future::pending::<()>().await;
         });
 
-        let run_task = tokio::spawn(async move { conn.run().await });
+        let shutdown_recv = shutdown.recv();
+        let run_task = tokio::spawn(async move { conn.run(shutdown_recv).await });
 
         tokio::time::timeout(Duration::from_secs(1), reconnected_rx)
             .await
             .expect("run should reconnect after the connection is closed")
             .expect("reconnect notification should be sent");
 
-        run_task.abort();
-        let run_abort = run_task.await.expect_err("run task should be aborted");
-        assert!(run_abort.is_cancelled());
+        shutdown.trigger();
+        let run_result = tokio::time::timeout(Duration::from_secs(1), run_task)
+            .await
+            .expect("run should exit after shutdown")
+            .expect("run task should not panic");
+        assert!(run_result.is_ok(), "run should return Ok on clean shutdown");
 
         server_task.abort();
         let server_abort = server_task
             .await
             .expect_err("server task should be aborted");
         assert!(server_abort.is_cancelled());
+    }
+
+    #[tokio::test]
+    async fn run_exits_cleanly_on_shutdown_during_accept() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+
+        let certs = generate_certs();
+        let addr: SocketAddr = TEST_BIND_ADDR.parse().expect("addr");
+        let endpoint = build_mock_manager_endpoint(&certs, addr);
+        let server_addr = endpoint.local_addr().expect("server addr");
+        let (_dir, settings) = build_test_settings(
+            "localhost",
+            server_addr,
+            certs.client_cert_pem.as_bytes(),
+            certs.client_key_pem.as_bytes(),
+            &[
+                certs.root_cert_pem.as_bytes(),
+                certs.inter_cert_pem.as_bytes(),
+            ],
+        );
+
+        let conn = Connection::new(&settings).expect("client connection config");
+        let shutdown = Shutdown::new();
+        let shutdown_recv = shutdown.recv();
+
+        // Server accepts and completes handshake, then keeps connection
+        // alive so the client blocks on accept_bi.
+        let server_task = tokio::spawn(async move {
+            let incoming = endpoint.accept().await.expect("accept");
+            let quinn_conn = incoming.await.expect("incoming conn");
+            let peer_addr = quinn_conn.remote_address();
+            let version_req = format!(">={TEST_PROTOCOL_VERSION}");
+            let _agent_info = review_protocol::server::handshake(
+                &quinn_conn,
+                peer_addr,
+                &version_req,
+                TEST_PROTOCOL_VERSION,
+            )
+            .await
+            .expect("server handshake");
+            std::future::pending::<()>().await;
+        });
+
+        let run_task = tokio::spawn(async move { conn.run(shutdown_recv).await });
+
+        // Give the client time to enter the accept loop.
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        shutdown.trigger();
+
+        let result = tokio::time::timeout(Duration::from_secs(2), run_task)
+            .await
+            .expect("run should exit after shutdown")
+            .expect("run task should not panic");
+        assert!(result.is_ok(), "run should return Ok on clean shutdown");
+
+        server_task.abort();
+    }
+
+    #[tokio::test]
+    async fn run_exits_cleanly_on_shutdown_during_reconnect() {
+        use tokio::sync::oneshot;
+
+        let _ = rustls::crypto::ring::default_provider().install_default();
+
+        let certs = generate_certs();
+        let addr: SocketAddr = TEST_BIND_ADDR.parse().expect("addr");
+        let endpoint = build_mock_manager_endpoint(&certs, addr);
+        let server_addr = endpoint.local_addr().expect("server addr");
+        let (_dir, settings) = build_test_settings(
+            "localhost",
+            server_addr,
+            certs.client_cert_pem.as_bytes(),
+            certs.client_key_pem.as_bytes(),
+            &[
+                certs.root_cert_pem.as_bytes(),
+                certs.inter_cert_pem.as_bytes(),
+            ],
+        );
+
+        let conn = Connection::new(&settings).expect("client connection config");
+        let shutdown = Shutdown::new();
+        let shutdown_recv = shutdown.recv();
+
+        // Signal when the server has closed the first connection so we
+        // know the client is about to enter the reconnect loop.
+        let (closed_tx, closed_rx) = oneshot::channel();
+
+        // Server accepts first connection, handshakes, sends a ping to
+        // ensure the client is fully connected, then closes it.
+        let server_task = tokio::spawn(async move {
+            let incoming = endpoint.accept().await.expect("accept");
+            let quinn_conn = incoming.await.expect("incoming conn");
+            let peer_addr = quinn_conn.remote_address();
+            let version_req = format!(">={TEST_PROTOCOL_VERSION}");
+            let _agent_info = review_protocol::server::handshake(
+                &quinn_conn,
+                peer_addr,
+                &version_req,
+                TEST_PROTOCOL_VERSION,
+            )
+            .await
+            .expect("server handshake");
+
+            let server_conn = review_protocol::server::Connection::from_quinn(quinn_conn.clone());
+            server_conn
+                .send_ping()
+                .await
+                .expect("send ping before close");
+            quinn_conn.close(0u32.into(), b"force close");
+            drop(server_conn);
+            let _ = closed_tx.send(());
+            // Keep endpoint alive so the reconnect loop keeps retrying.
+            std::future::pending::<()>().await;
+        });
+
+        let run_task = tokio::spawn(async move { conn.run(shutdown_recv).await });
+
+        // Wait until the server has closed the connection.
+        closed_rx.await.expect("closed notification");
+        // Give the client time to detect the close and enter reconnect.
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        shutdown.trigger();
+
+        let result = tokio::time::timeout(Duration::from_secs(2), run_task)
+            .await
+            .expect("run should exit after shutdown")
+            .expect("run task should not panic");
+        assert!(result.is_ok(), "run should return Ok on clean shutdown");
+
+        server_task.abort();
     }
 }
