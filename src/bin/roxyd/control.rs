@@ -142,14 +142,18 @@ impl Connection {
     /// and dispatches each to the request handler. When the connection is
     /// closed by the Manager or an error occurs, it reconnects automatically.
     ///
-    /// The loop exits cleanly when `shutdown` is signalled.
+    /// The function exits cleanly when `shutdown` is signalled, including
+    /// during the initial connection attempt.
     ///
     /// # Errors
     ///
-    /// Returns an error if the initial connection cannot be established.
-    /// Subsequent reconnection failures are logged and retried.
+    /// Returns an error if the initial connection fails and shutdown was
+    /// not requested. Subsequent reconnection failures are logged and retried.
     pub async fn run(&self, mut shutdown: ShutdownRecv) -> Result<()> {
-        let mut inner = self.connect().await?;
+        let mut inner = tokio::select! {
+            result = self.connect() => result?,
+            () = shutdown.wait() => return Ok(()),
+        };
         loop {
             tracing::info!("Starting message processing loop");
             let shutdown_requested = loop {
@@ -1083,6 +1087,45 @@ mod tests {
         assert!(result.is_ok(), "run should return Ok on clean shutdown");
 
         server_task.abort();
+    }
+
+    #[tokio::test]
+    async fn run_exits_cleanly_on_shutdown_during_initial_connect() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+
+        let certs = generate_certs();
+        let addr: SocketAddr = TEST_BIND_ADDR.parse().expect("addr");
+        // Use an endpoint that never accepts, so the client blocks on
+        // the initial connect handshake indefinitely.
+        let endpoint = build_mock_manager_endpoint(&certs, addr);
+        let server_addr = endpoint.local_addr().expect("server addr");
+        let (_dir, settings) = build_test_settings(
+            "localhost",
+            server_addr,
+            certs.client_cert_pem.as_bytes(),
+            certs.client_key_pem.as_bytes(),
+            &[
+                certs.root_cert_pem.as_bytes(),
+                certs.inter_cert_pem.as_bytes(),
+            ],
+        );
+
+        let conn = Connection::new(&settings).expect("client connection config");
+        let shutdown = Shutdown::new();
+        let shutdown_recv = shutdown.recv();
+
+        let run_task = tokio::spawn(async move { conn.run(shutdown_recv).await });
+
+        // Give the client time to start the initial connection attempt.
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        shutdown.trigger();
+
+        let result = tokio::time::timeout(Duration::from_secs(2), run_task)
+            .await
+            .expect("run should exit after shutdown")
+            .expect("run task should not panic");
+        assert!(result.is_ok(), "run should return Ok on clean shutdown");
     }
 
     #[tokio::test]

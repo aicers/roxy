@@ -111,9 +111,15 @@ async fn main() -> ExitCode {
     let shutdown = Shutdown::new();
     let shutdown_handle = shutdown.clone();
     tokio::spawn(async move {
-        tokio::signal::ctrl_c()
-            .await
-            .expect("failed to listen for ctrl-c");
+        let ctrl_c = tokio::signal::ctrl_c();
+        let mut sigterm = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("failed to listen for SIGTERM");
+        tokio::select! {
+            result = ctrl_c => {
+                result.expect("failed to listen for SIGINT");
+            }
+            _ = sigterm.recv() => {}
+        }
         tracing::info!("Shutdown requested");
         shutdown_handle.trigger();
     });
