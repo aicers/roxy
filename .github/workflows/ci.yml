@@ -19,7 +19,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Check formatting
         run: cargo fmt -- --check --config group_imports=StdExternalCrate
       - name: Clippy
@@ -27,7 +27,7 @@ jobs:
       - name: Detect Cargo.lock changes
         run: git diff-index --quiet HEAD --
       - name: markdownlint
-        uses: DavidAnson/markdownlint-cli2-action@v21
+        uses: DavidAnson/markdownlint-cli2-action@v23
         with:
           globs: '**/*.md'
 
@@ -39,7 +39,7 @@ jobs:
     steps:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Build
         run: cargo build --verbose
       - name: Run tests
