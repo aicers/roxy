@@ -1,6 +1,6 @@
 # Roxy
 
-[![codecov](https://codecov.io/gh/aicers/roxy/branch/main/graph/badge.svg)](https://codecov.io/gh/aicers/roxy)
+[![Coverage Status](https://codecov.io/gh/aicers/roxy/branch/main/graph/badge.svg)](https://codecov.io/gh/aicers/roxy)
 
 Roxy is a root proxy that executes a system command requiring the root privilege.
 
