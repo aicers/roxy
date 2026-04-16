@@ -147,8 +147,8 @@ impl Connection {
     ///
     /// # Errors
     ///
-    /// Returns an error if the initial connection fails and shutdown was
-    /// not requested. Subsequent reconnection failures are logged and retried.
+    /// Returns an error if the initial connection cannot be established.
+    /// Subsequent reconnection failures are logged and retried.
     pub async fn run(&self, mut shutdown: ShutdownRecv) -> Result<()> {
         let mut inner = tokio::select! {
             result = self.connect() => result?,
@@ -1055,8 +1055,6 @@ mod tests {
         let shutdown = Shutdown::new();
         let shutdown_recv = shutdown.recv();
 
-        // Server accepts and completes handshake, then keeps connection
-        // alive so the client blocks on accept_bi.
         let server_task = tokio::spawn(async move {
             let incoming = endpoint.accept().await.expect("accept");
             let quinn_conn = incoming.await.expect("incoming conn");
@@ -1070,6 +1068,8 @@ mod tests {
             )
             .await
             .expect("server handshake");
+            // Keep the connection open without opening any streams, so the
+            // client remains blocked on accept_bi.
             std::future::pending::<()>().await;
         });
 
