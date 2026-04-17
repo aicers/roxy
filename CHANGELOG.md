@@ -8,6 +8,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Add explicit shutdown path for `roxyd` that handles OS signals
+  (SIGINT/SIGTERM), cancels any in-progress connection attempt or
+  accept/reconnect loop cleanly, and logs shutdown lifecycle events.
 - Add tracing in `roxyd` for incoming `review-protocol` request dispatch, logging
   the selected handler group and request identifier.
 - Add `roxyd` binary entrypoint as a new implementation path for QUIC/mTLS

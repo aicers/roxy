@@ -21,6 +21,7 @@ use std::{fs, path::Path, process::ExitCode};
 
 use anyhow::{Context, Result};
 use clap::Parser;
+use control::Shutdown;
 use settings::{Args, Config, Settings};
 use tracing::level_filters::LevelFilter;
 use tracing_appender::non_blocking::WorkerGuard;
@@ -107,18 +108,35 @@ async fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    if let Err(err) = run(&settings).await {
+    let shutdown = Shutdown::new();
+    let shutdown_handle = shutdown.clone();
+    tokio::spawn(async move {
+        let ctrl_c = tokio::signal::ctrl_c();
+        let mut sigterm = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("failed to listen for SIGTERM");
+        tokio::select! {
+            result = ctrl_c => {
+                result.expect("failed to listen for SIGINT");
+            }
+            _ = sigterm.recv() => {}
+        }
+        tracing::info!("Shutdown requested");
+        shutdown_handle.trigger();
+    });
+
+    if let Err(err) = run(&settings, shutdown).await {
         tracing::error!("Roxyd terminated with error: {err:#}");
         return ExitCode::FAILURE;
     }
+    tracing::info!("Shutdown completed");
     ExitCode::SUCCESS
 }
 
-async fn run(settings: &Settings) -> Result<()> {
+async fn run(settings: &Settings, shutdown: Shutdown) -> Result<()> {
     tracing::info!("Starting roxyd");
     log_config_status(settings);
 
     let conn = control::Connection::new(settings)?;
 
-    conn.run().await
+    conn.run(shutdown.recv()).await
 }
