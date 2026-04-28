@@ -5,6 +5,7 @@ use std::{
     io::{Read, Write},
     net::IpAddr,
     process::Command,
+    time::SystemTime,
 };
 
 use anyhow::{Result, anyhow};
@@ -428,17 +429,13 @@ fn list_files(
     for path in paths.flatten() {
         let filepath = path.path();
         let metadata = fs::metadata(filepath)?;
-        let modified: DateTime<Local> = metadata.modified()?.into();
+        let modified = format_modified_time(metadata.modified()?);
 
         if let Some(filename) = path.path().file_name()
             && let Some(filename) = filename.to_str()
         {
             if metadata.is_file() {
-                files.push((
-                    metadata.len(),
-                    format!("{}", modified.format("%Y/%m/%d %T")),
-                    filename.to_string(),
-                ));
+                files.push((metadata.len(), modified, filename.to_string()));
             } else if subdir && metadata.is_dir() {
                 files.push((0, String::new(), filename.to_string()));
                 /*
@@ -461,6 +458,13 @@ fn list_files(
     Ok(files)
 }
 
+// Formats a file modification time as local time in the pattern
+// "YYYY/MM/DD HH:MM:SS".
+fn format_modified_time(modified: SystemTime) -> String {
+    let modified: DateTime<Local> = modified.into();
+    modified.format("%Y/%m/%d %T").to_string()
+}
+
 fn run_command(cmd: &str, args: &[&str]) -> Result<bool> {
     let status = Command::new(cmd)
         .env("PATH", "/usr/sbin:/usr/bin:/sbin:/bin")
@@ -473,7 +477,7 @@ fn run_command(cmd: &str, args: &[&str]) -> Result<bool> {
 mod tests {
     use std::{
         path::{Path, PathBuf},
-        time::{SystemTime, UNIX_EPOCH},
+        time::{Duration, SystemTime, UNIX_EPOCH},
     };
 
     use super::*;
@@ -682,6 +686,25 @@ mod tests {
         );
 
         fs::remove_dir_all(&dir).expect("temp test directory should be removable");
+    }
+
+    #[test]
+    fn list_files_formats_modified_time_in_local_timezone() {
+        // SAFETY: TZ is mutated process-wide. We force UTC so that the
+        // local-time formatting in `list_files` is deterministic across CI
+        // and developer machines, regardless of the host's actual zone.
+        unsafe {
+            std::env::set_var("TZ", "UTC");
+        }
+
+        // 1_700_000_000 seconds after the Unix epoch is
+        // 2023-11-14 22:13:20 UTC. With TZ=UTC, local time equals UTC.
+        let ts = UNIX_EPOCH + Duration::from_secs(1_700_000_000);
+        assert_eq!(format_modified_time(ts), "2023/11/14 22:13:20");
+
+        // Verify the format width is fixed: 4+1+2+1+2+1+2+1+2+1+2 = 19 chars.
+        assert_eq!(format_modified_time(UNIX_EPOCH).len(), 19);
+        assert_eq!(format_modified_time(UNIX_EPOCH), "1970/01/01 00:00:00");
     }
 
     #[test]
