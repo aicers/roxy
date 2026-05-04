@@ -2402,7 +2402,6 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bincode 1.3.3",
- "chrono",
  "clap",
  "config",
  "data-encoding",
