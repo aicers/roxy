@@ -4,6 +4,20 @@ This file documents recent notable changes to this project. The format of this
 file is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Simplify `list_files` in `src/root/ifconfig.rs` to return only file names
+  rather than `(size, modified-time, name)` tuples. Internal callers
+  (`load_netplan_yaml`, `NetplanYaml::apply`) only used the file name; size and
+  modified-time were unused.
+
+### Removed
+
+- Remove direct `chrono` dependency. The only direct use was formatting
+  modified-time strings in `list_files`, which is no longer returned.
+
 ## [0.6.0] - 2026-04-16
 
 ### Added
