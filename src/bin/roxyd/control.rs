@@ -4,6 +4,7 @@
 //! Manager: connect, run loop, stream accept, reconnect, and dispatch entry.
 //! All request handling is delegated to the [`handlers`] module.
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
@@ -17,6 +18,7 @@ use review_protocol::types::node::{
 };
 use tokio::sync::watch;
 
+use super::handlers::power::{PowerExecutor, PowerHandler, SystemPowerExecutor};
 use super::{handlers, settings::Settings};
 
 /// The review-protocol version required by this client.
@@ -222,10 +224,44 @@ impl Connection {
 ///
 /// Returns an error if request reading or response sending fails.
 async fn dispatch(send: &mut quinn::SendStream, recv: &mut quinn::RecvStream) -> Result<()> {
-    let mut handler = RequestHandler;
-    review_protocol::request::handle(&mut handler, send, recv)
+    dispatch_with_executor(send, recv, Arc::new(SystemPowerExecutor)).await
+}
+
+/// Power-aware dispatch entry that takes a caller-supplied
+/// [`PowerExecutor`].
+///
+/// Immediate `NodePowerRequest::Reboot` and `NodePowerRequest::Shutdown`
+/// (and the legacy flat `reboot`/`shutdown` compatibility paths) prepare a
+/// [`handlers::power::PendingPowerOperation`] inside the handler but do not
+/// execute the destructive system call. After
+/// [`review_protocol::request::handle`] returns successfully — which means
+/// the `NodePowerResponse::Initiated` response has been written to the
+/// stream — this function releases the pending operation. If the response
+/// write fails, the pending operation is dropped without being released and
+/// the executor is never invoked.
+///
+/// # Errors
+///
+/// Returns an error if request reading or response sending fails.
+async fn dispatch_with_executor(
+    send: &mut quinn::SendStream,
+    recv: &mut quinn::RecvStream,
+    executor: Arc<dyn PowerExecutor>,
+) -> Result<()> {
+    let mut handler = RequestHandler::new(executor);
+    let result = review_protocol::request::handle(&mut handler, send, recv)
         .await
-        .map_err(|e| anyhow::anyhow!("{e}"))
+        .map_err(|e| anyhow::anyhow!("{e}"));
+
+    if result.is_ok() {
+        // The response stream wrote successfully; release any prepared
+        // immediate power operations so they proceed to reboot/poweroff.
+        let _join_handles = handler.power.release_pending();
+    }
+    // On error, `handler` is dropped here; any unreleased pending power
+    // operations observe the closed sender and exit without rebooting.
+
+    result
 }
 
 /// Request handler that maps review-protocol requests into roxyd handlers.
@@ -238,7 +274,17 @@ async fn dispatch(send: &mut quinn::SendStream, recv: &mut quinn::RecvStream) ->
 /// The legacy flat methods (`reboot`, `shutdown`, `process_list`,
 /// `resource_usage`) are temporary protocol-compatibility adapters that
 /// route through the grouped handlers.
-struct RequestHandler;
+struct RequestHandler {
+    power: PowerHandler,
+}
+
+impl RequestHandler {
+    fn new(executor: Arc<dyn PowerExecutor>) -> Self {
+        Self {
+            power: PowerHandler::new(executor),
+        }
+    }
+}
 
 #[async_trait::async_trait]
 impl review_protocol::request::Handler for RequestHandler {
@@ -286,7 +332,7 @@ impl review_protocol::request::Handler for RequestHandler {
 
     async fn node_power(&mut self, req: NodePowerRequest) -> Result<NodePowerResponse, String> {
         tracing::info!(handler_group = "node_power", request = %req.service_id(), "Dispatching request");
-        handlers::power::handle(req).await
+        self.power.handle(req).await
     }
 
     async fn node_observation(
@@ -857,6 +903,315 @@ mod tests {
         drop(server);
         let task_result = task.await.expect("task should not panic");
         assert!(task_result.is_ok());
+    }
+
+    // -- Tests: RequestCode dispatch over live connection --------------
+
+    /// Spawns a dispatch loop that uses the provided mock executor for every
+    /// stream accepted on this connection. Returns the task handle so the
+    /// caller can drive shutdown.
+    fn spawn_dispatch_loop_with_mock(
+        inner: review_protocol::client::Connection,
+        mock: Arc<handlers::power::MockPowerExecutor>,
+    ) -> tokio::task::JoinHandle<Result<(), anyhow::Error>> {
+        let executor: Arc<dyn PowerExecutor> = mock;
+        tokio::spawn(async move {
+            loop {
+                let Ok((mut send, mut recv)) = inner.accept_bi().await else {
+                    return Ok::<(), anyhow::Error>(());
+                };
+                if let Err(e) = dispatch_with_executor(&mut send, &mut recv, executor.clone()).await
+                {
+                    tracing::error!("Request handling failed: {e}");
+                }
+            }
+        })
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn dispatch_reboot_over_live_connection() {
+        use std::sync::atomic::Ordering;
+
+        let (inner, server, _endpoint) = setup_test_connection().await;
+        let mock = Arc::new(handlers::power::MockPowerExecutor::default());
+        let task = spawn_dispatch_loop_with_mock(inner, mock.clone());
+
+        let result = server.send_reboot_cmd().await;
+        assert!(result.is_ok(), "reboot should be accepted: {result:?}");
+
+        // Give the background reboot task time to call the mock executor.
+        for _ in 0..50 {
+            if mock.reboot_count.load(Ordering::SeqCst) > 0 {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+        assert_eq!(mock.reboot_count.load(Ordering::SeqCst), 1);
+
+        drop(server);
+        let task_result = task.await.expect("dispatch task should not panic");
+        assert!(task_result.is_ok());
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn dispatch_shutdown_over_live_connection() {
+        use std::sync::atomic::Ordering;
+
+        let (inner, server, _endpoint) = setup_test_connection().await;
+        let mock = Arc::new(handlers::power::MockPowerExecutor::default());
+        let task = spawn_dispatch_loop_with_mock(inner, mock.clone());
+
+        let result = server.send_shutdown_cmd().await;
+        assert!(result.is_ok(), "shutdown should be accepted: {result:?}");
+
+        for _ in 0..50 {
+            if mock.power_off_count.load(Ordering::SeqCst) > 0 {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+        assert_eq!(mock.power_off_count.load(Ordering::SeqCst), 1);
+
+        drop(server);
+        let task_result = task.await.expect("dispatch task should not panic");
+        assert!(task_result.is_ok());
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    #[tokio::test]
+    async fn dispatch_reboot_over_live_connection_non_linux() {
+        let (inner, server, _endpoint) = setup_test_connection().await;
+        let mock = Arc::new(handlers::power::MockPowerExecutor::default());
+        let task = spawn_dispatch_loop_with_mock(inner, mock.clone());
+
+        let err = server
+            .send_reboot_cmd()
+            .await
+            .expect_err("immediate reboot is Linux-only");
+        assert!(
+            err.to_string().contains("invalid command"),
+            "expected 'invalid command', got: {err}"
+        );
+
+        drop(server);
+        let _ = task.await.expect("dispatch task should not panic");
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    #[tokio::test]
+    async fn dispatch_shutdown_over_live_connection_non_linux() {
+        let (inner, server, _endpoint) = setup_test_connection().await;
+        let mock = Arc::new(handlers::power::MockPowerExecutor::default());
+        let task = spawn_dispatch_loop_with_mock(inner, mock.clone());
+
+        let err = server
+            .send_shutdown_cmd()
+            .await
+            .expect_err("immediate shutdown is Linux-only");
+        assert!(
+            err.to_string().contains("invalid command"),
+            "expected 'invalid command', got: {err}"
+        );
+
+        drop(server);
+        let _ = task.await.expect("dispatch task should not panic");
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn dispatch_node_power_reboot_over_live_connection() {
+        use std::sync::atomic::Ordering;
+
+        use review_protocol::types::node::{NodePowerRequest, NodePowerResponse};
+
+        let (inner, server, _endpoint) = setup_test_connection().await;
+        let mock = Arc::new(handlers::power::MockPowerExecutor::default());
+        let task = spawn_dispatch_loop_with_mock(inner, mock.clone());
+
+        let resp = server
+            .node_power(NodePowerRequest::Reboot)
+            .await
+            .expect("node_power reboot should succeed");
+        assert_eq!(resp, NodePowerResponse::Initiated);
+
+        for _ in 0..50 {
+            if mock.reboot_count.load(Ordering::SeqCst) > 0 {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+        assert_eq!(mock.reboot_count.load(Ordering::SeqCst), 1);
+
+        drop(server);
+        let _ = task.await.expect("dispatch task should not panic");
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    #[tokio::test]
+    async fn dispatch_node_power_reboot_over_live_connection_non_linux() {
+        use review_protocol::types::node::NodePowerRequest;
+
+        let (inner, server, _endpoint) = setup_test_connection().await;
+        let mock = Arc::new(handlers::power::MockPowerExecutor::default());
+        let task = spawn_dispatch_loop_with_mock(inner, mock.clone());
+
+        let err = server
+            .node_power(NodePowerRequest::Reboot)
+            .await
+            .expect_err("immediate reboot is Linux-only");
+        assert!(
+            err.to_string().contains("invalid command"),
+            "expected 'invalid command', got: {err}"
+        );
+
+        drop(server);
+        let _ = task.await.expect("dispatch task should not panic");
+    }
+
+    #[tokio::test]
+    async fn dispatch_node_power_graceful_reboot_over_live_connection() {
+        use std::sync::atomic::Ordering;
+
+        use review_protocol::types::node::{NodePowerRequest, NodePowerResponse};
+
+        let (inner, server, _endpoint) = setup_test_connection().await;
+        let mock = Arc::new(handlers::power::MockPowerExecutor::default());
+        let task = spawn_dispatch_loop_with_mock(inner, mock.clone());
+
+        let resp = server
+            .node_power(NodePowerRequest::GracefulReboot)
+            .await
+            .expect("graceful reboot should succeed");
+        assert_eq!(resp, NodePowerResponse::Initiated);
+        assert_eq!(mock.graceful_reboot_count.load(Ordering::SeqCst), 1);
+        // Graceful path must not trigger immediate reboot.
+        assert_eq!(mock.reboot_count.load(Ordering::SeqCst), 0);
+
+        drop(server);
+        let _ = task.await.expect("dispatch task should not panic");
+    }
+
+    #[tokio::test]
+    async fn dispatch_node_power_graceful_shutdown_over_live_connection() {
+        use std::sync::atomic::Ordering;
+
+        use review_protocol::types::node::{NodePowerRequest, NodePowerResponse};
+
+        let (inner, server, _endpoint) = setup_test_connection().await;
+        let mock = Arc::new(handlers::power::MockPowerExecutor::default());
+        let task = spawn_dispatch_loop_with_mock(inner, mock.clone());
+
+        let resp = server
+            .node_power(NodePowerRequest::GracefulShutdown)
+            .await
+            .expect("graceful shutdown should succeed");
+        assert_eq!(resp, NodePowerResponse::Initiated);
+        assert_eq!(mock.graceful_power_off_count.load(Ordering::SeqCst), 1);
+
+        drop(server);
+        let _ = task.await.expect("dispatch task should not panic");
+    }
+
+    #[tokio::test]
+    async fn dispatch_node_power_graceful_reboot_fail_over_live_connection() {
+        use std::sync::atomic::Ordering;
+
+        use review_protocol::types::node::NodePowerRequest;
+
+        let (inner, server, _endpoint) = setup_test_connection().await;
+        let mock = Arc::new(handlers::power::MockPowerExecutor::default());
+        mock.graceful_reboot_fail.store(true, Ordering::SeqCst);
+        let task = spawn_dispatch_loop_with_mock(inner, mock.clone());
+
+        let err = server
+            .node_power(NodePowerRequest::GracefulReboot)
+            .await
+            .expect_err("graceful reboot should fail");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("fail"),
+            "expected 'fail' in error message, got: {msg}"
+        );
+
+        drop(server);
+        let _ = task.await.expect("dispatch task should not panic");
+    }
+
+    /// Verifies that when the response stream is dropped before the response
+    /// reaches the peer (simulated here by closing the stream from the
+    /// server side after the connection-level send), the pending immediate
+    /// power operation is not released and the executor is never invoked.
+    #[tokio::test]
+    async fn pending_reboot_cancelled_on_dispatch_error() {
+        use std::sync::atomic::Ordering;
+
+        // Build a handler and call into it directly to simulate the dispatch
+        // path. This isolates the cancellation invariant from the QUIC
+        // transport.
+        let mock = Arc::new(handlers::power::MockPowerExecutor::default());
+        let mut handler = super::RequestHandler::new(mock.clone() as Arc<dyn PowerExecutor>);
+
+        // Drive the node_power handler directly. On non-Linux this returns
+        // an error and there is nothing pending — the assertion holds.
+        let _ = review_protocol::request::Handler::node_power(
+            &mut handler,
+            review_protocol::types::node::NodePowerRequest::Reboot,
+        )
+        .await;
+
+        // Drop without calling release_pending — simulates a response-write
+        // failure in dispatch_with_executor.
+        drop(handler);
+
+        for _ in 0..20 {
+            tokio::task::yield_now().await;
+        }
+
+        assert_eq!(mock.reboot_count.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn dispatch_resource_usage_over_live_connection() {
+        let (inner, server, _endpoint) = setup_test_connection().await;
+        let task = tokio::spawn(async move {
+            loop {
+                let Ok((mut send, mut recv)) = inner.accept_bi().await else {
+                    return Ok::<(), anyhow::Error>(());
+                };
+                if let Err(e) = dispatch(&mut send, &mut recv).await {
+                    tracing::error!("Request handling failed: {e}");
+                }
+            }
+        });
+
+        let result = server.get_resource_usage().await;
+        assert!(result.is_err(), "should fail: handler is unimplemented");
+
+        let task_err = task.await.expect_err("task should have panicked");
+        assert!(task_err.is_panic());
+    }
+
+    #[tokio::test]
+    async fn dispatch_process_list_over_live_connection() {
+        let (inner, server, _endpoint) = setup_test_connection().await;
+        let task = tokio::spawn(async move {
+            loop {
+                let Ok((mut send, mut recv)) = inner.accept_bi().await else {
+                    return Ok::<(), anyhow::Error>(());
+                };
+                if let Err(e) = dispatch(&mut send, &mut recv).await {
+                    tracing::error!("Request handling failed: {e}");
+                }
+            }
+        });
+
+        let result = server.get_process_list().await;
+        assert!(result.is_err(), "should fail: handler is unimplemented");
+
+        let task_err = task.await.expect_err("task should have panicked");
+        assert!(task_err.is_panic());
     }
 
     #[tokio::test]

@@ -8,6 +8,22 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Implement the full `node_power` family directly in `roxyd`. Immediate
+  `NodePowerRequest::Reboot` and `NodePowerRequest::Shutdown` (and the legacy
+  flat `reboot`/`shutdown` compatibility requests) now prepare a pending
+  reboot or power-off operation and only execute the destructive system call
+  after `roxyd` has written `NodePowerResponse::Initiated` successfully on
+  the request stream. If the response write fails, the pending operation is
+  cancelled without rebooting or powering off. Immediate variants remain
+  Linux-only and return `"invalid command"` on other platforms.
+  `NodePowerRequest::GracefulReboot` and `NodePowerRequest::GracefulShutdown`
+  spawn the platform's standard reboot/poweroff command and return
+  `"fail"` if the process could not be started.
+
+## [0.6.0] - 2026-04-16
+
+### Added
+
 - Add explicit shutdown path for `roxyd` that handles OS signals
   (SIGINT/SIGTERM), cancels any in-progress connection attempt or
   accept/reconnect loop cleanly, and logs shutdown lifecycle events.
