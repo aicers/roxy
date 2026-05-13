@@ -8,15 +8,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
-- Simplify `list_files` in `src/root/ifconfig.rs` to return only file names
-  rather than `(size, modified-time, name)` tuples. Internal callers
-  (`load_netplan_yaml`, `NetplanYaml::apply`) only used the file name; size and
-  modified-time were unused.
+- Simplified `list_files` to return only file names instead of unused size and
+  modified-time data.
 
 ### Removed
 
-- Remove direct `chrono` dependency. The only direct use was formatting
-  modified-time strings in `list_files`, which is no longer returned.
+- Removed the direct `chrono` dependency.
 
 ## [0.6.0] - 2026-04-16
 
