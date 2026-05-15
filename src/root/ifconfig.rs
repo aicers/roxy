@@ -8,7 +8,6 @@ use std::{
 };
 
 use anyhow::{Result, anyhow};
-use chrono::{DateTime, Local};
 use ipnet::IpNet;
 use pnet::datalink::interfaces;
 use serde_derive::{Deserialize, Serialize};
@@ -180,7 +179,7 @@ impl NetplanYaml {
 
         let mut from = format!("/tmp/{DEFAULT_NETPLAN_YAML}");
         let mut to = format!("{dir}/{DEFAULT_NETPLAN_YAML}");
-        if let Some((_, _, first)) = files.first()
+        if let Some(first) = files.first()
             && first != DEFAULT_NETPLAN_YAML
         {
             from = format!("/tmp/{first}");
@@ -197,7 +196,7 @@ impl NetplanYaml {
         fs::copy(&from, &to)?;
         fs::remove_file(&from)?;
 
-        for (_, _, file) in &files {
+        for file in &files {
             let path = format!("{dir}/{file}");
             if path != to {
                 fs::remove_file(&path)?;
@@ -219,7 +218,7 @@ impl NetplanYaml {
 fn load_netplan_yaml(dir: &str) -> Result<NetplanYaml> {
     let files = list_files(dir, None, false)?;
     let mut netplan: Option<NetplanYaml> = None;
-    for (_, _, file) in files {
+    for file in files {
         let path = format!("{dir}/{file}");
         let netplan_cfg = NetplanYaml::new(&path)?;
         if let Some(n) = &mut netplan {
@@ -416,48 +415,27 @@ pub(crate) fn get_interface_names(arg: Option<&String>) -> Vec<String> {
 // Possible errors:
 // * dir is not exist or fail to read dir
 // * fail to get metadata from file
-// * fail to get modified time from file
-fn list_files(
-    dir: &str,
-    except: Option<&[&str]>,
-    subdir: bool,
-) -> Result<Vec<(u64, String, String)>> {
+fn list_files(dir: &str, except: Option<&[&str]>, subdir: bool) -> Result<Vec<String>> {
     let paths = fs::read_dir(dir)?;
 
     let mut files = Vec::new();
     for path in paths.flatten() {
         let filepath = path.path();
         let metadata = fs::metadata(filepath)?;
-        let modified: DateTime<Local> = metadata.modified()?.into();
 
         if let Some(filename) = path.path().file_name()
             && let Some(filename) = filename.to_str()
+            && (metadata.is_file() || (subdir && metadata.is_dir()))
         {
-            if metadata.is_file() {
-                files.push((
-                    metadata.len(),
-                    format!("{}", modified.format("%Y/%m/%d %T")),
-                    filename.to_string(),
-                ));
-            } else if subdir && metadata.is_dir() {
-                files.push((0, String::new(), filename.to_string()));
-                /*
-                // if it's required to traverse the directory recursively, uncomment this code
-                if let Ok(ret) = list_files(filename, except, subdir) {
-                    for (size, modified_time, name) in ret {
-                        files.push((size, modified_time, format!("{}/{}", filename, name)));
-                    }
-                }
-                */
-            }
+            files.push(filename.to_string());
         }
     }
     if let Some(except) = except {
         for prefix in except {
-            files.retain(|(_, _, name)| !name.starts_with(prefix));
+            files.retain(|name| !name.starts_with(*prefix));
         }
     }
-    files.sort_by(|a, b| a.2.cmp(&b.2));
+    files.sort();
     Ok(files)
 }
 
@@ -652,8 +630,7 @@ mod tests {
             false,
         )
         .expect("listing files should succeed");
-        let names: Vec<String> = listed.into_iter().map(|(_, _, name)| name).collect();
-        assert_eq!(names, vec!["a.yaml".to_string(), "b.yaml".to_string()]);
+        assert_eq!(listed, vec!["a.yaml".to_string(), "b.yaml".to_string()]);
 
         let filtered = list_files(
             dir.to_str().expect("temp path should be valid utf-8"),
@@ -661,8 +638,7 @@ mod tests {
             false,
         )
         .expect("listing files with except should succeed");
-        let filtered_names: Vec<String> = filtered.into_iter().map(|(_, _, name)| name).collect();
-        assert_eq!(filtered_names, vec!["b.yaml".to_string()]);
+        assert_eq!(filtered, vec!["b.yaml".to_string()]);
 
         let with_subdir = list_files(
             dir.to_str().expect("temp path should be valid utf-8"),
@@ -670,10 +646,8 @@ mod tests {
             true,
         )
         .expect("listing files with subdir should succeed");
-        let with_subdir_names: Vec<String> =
-            with_subdir.into_iter().map(|(_, _, name)| name).collect();
         assert_eq!(
-            with_subdir_names,
+            with_subdir,
             vec![
                 "a.yaml".to_string(),
                 "b.yaml".to_string(),
