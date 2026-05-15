@@ -132,7 +132,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - Initial release.
 
-[Unreleased]: https://github.com/aicers/roxy/compare/0.6.0...HEAD
+[Unreleased]: https://github.com/aicers/roxy/compare/0.6.0...main
 [0.6.0]: https://github.com/aicers/roxy/compare/0.5.1...0.6.0
 [0.5.1]: https://github.com/aicers/roxy/compare/0.5.0...0.5.1
 [0.5.0]: https://github.com/aicers/roxy/compare/0.4.0...0.5.0
