@@ -458,12 +458,12 @@ mod tests {
     use std::{fs, net::SocketAddr, sync::Arc};
 
     use rcgen::{BasicConstraints, CertificateParams, DnType, IsCa, Issuer, KeyPair};
+    use review_protocol::server::node::NodePowerOutcome;
     use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer};
     use tempfile::{TempDir, tempdir};
 
     use super::*;
     use crate::settings::{Config, Settings};
-    use review_protocol::server::node::NodePowerOutcome;
 
     const TEST_PROTOCOL_VERSION: &str = "0.47.0";
     const TEST_BIND_ADDR: &str = "127.0.0.1:0";
