@@ -463,6 +463,7 @@ mod tests {
 
     use super::*;
     use crate::settings::{Config, Settings};
+    use review_protocol::server::node::NodePowerOutcome;
 
     const TEST_PROTOCOL_VERSION: &str = "0.47.0";
     const TEST_BIND_ADDR: &str = "127.0.0.1:0";
@@ -875,8 +876,11 @@ mod tests {
             }
         });
 
-        let result = server.send_reboot_cmd().await;
-        assert!(result.is_err(), "should fail: handler is unimplemented");
+        let result = server.node_power(NodePowerRequest::Reboot).await;
+        assert!(
+            matches!(result, Ok(NodePowerOutcome::Sent)),
+            "immediate reboot should send without awaiting a response: {result:?}"
+        );
 
         let task_err = task.await.expect_err("task should have panicked");
         assert!(task_err.is_panic());
@@ -896,8 +900,11 @@ mod tests {
             }
         });
 
-        let result = server.send_shutdown_cmd().await;
-        assert!(result.is_err(), "should fail: handler is unimplemented");
+        let result = server.node_power(NodePowerRequest::Shutdown).await;
+        assert!(
+            matches!(result, Ok(NodePowerOutcome::Sent)),
+            "immediate shutdown should send without awaiting a response: {result:?}"
+        );
 
         let task_err = task.await.expect_err("task should have panicked");
         assert!(task_err.is_panic());
@@ -917,7 +924,9 @@ mod tests {
             }
         });
 
-        let result = server.get_resource_usage().await;
+        let result = server
+            .node_observation(NodeObservationRequest::ResourceUsage)
+            .await;
         assert!(result.is_err(), "should fail: handler is unimplemented");
 
         let task_err = task.await.expect_err("task should have panicked");
@@ -938,7 +947,9 @@ mod tests {
             }
         });
 
-        let result = server.get_process_list().await;
+        let result = server
+            .node_observation(NodeObservationRequest::ProcessList)
+            .await;
         assert!(result.is_err(), "should fail: handler is unimplemented");
 
         let task_err = task.await.expect_err("task should have panicked");
