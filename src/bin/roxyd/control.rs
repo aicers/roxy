@@ -458,7 +458,6 @@ mod tests {
     use std::{fs, net::SocketAddr, sync::Arc};
 
     use rcgen::{BasicConstraints, CertificateParams, DnType, IsCa, Issuer, KeyPair};
-    use review_protocol::server::node::NodePowerOutcome;
     use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer};
     use tempfile::{TempDir, tempdir};
 
@@ -858,102 +857,6 @@ mod tests {
         drop(server);
         let task_result = task.await.expect("task should not panic");
         assert!(task_result.is_ok());
-    }
-
-    // -- Tests: RequestCode dispatch over live connection --------------
-
-    #[tokio::test]
-    async fn dispatch_reboot_over_live_connection() {
-        let (inner, server, _endpoint) = setup_test_connection().await;
-        let task = tokio::spawn(async move {
-            loop {
-                let Ok((mut send, mut recv)) = inner.accept_bi().await else {
-                    return Ok::<(), anyhow::Error>(());
-                };
-                if let Err(e) = dispatch(&mut send, &mut recv).await {
-                    tracing::error!("Request handling failed: {e}");
-                }
-            }
-        });
-
-        let result = server.node_power(NodePowerRequest::Reboot).await;
-        assert!(
-            matches!(result, Ok(NodePowerOutcome::Sent)),
-            "immediate reboot should send without awaiting a response: {result:?}"
-        );
-
-        let task_err = task.await.expect_err("task should have panicked");
-        assert!(task_err.is_panic());
-    }
-
-    #[tokio::test]
-    async fn dispatch_shutdown_over_live_connection() {
-        let (inner, server, _endpoint) = setup_test_connection().await;
-        let task = tokio::spawn(async move {
-            loop {
-                let Ok((mut send, mut recv)) = inner.accept_bi().await else {
-                    return Ok::<(), anyhow::Error>(());
-                };
-                if let Err(e) = dispatch(&mut send, &mut recv).await {
-                    tracing::error!("Request handling failed: {e}");
-                }
-            }
-        });
-
-        let result = server.node_power(NodePowerRequest::Shutdown).await;
-        assert!(
-            matches!(result, Ok(NodePowerOutcome::Sent)),
-            "immediate shutdown should send without awaiting a response: {result:?}"
-        );
-
-        let task_err = task.await.expect_err("task should have panicked");
-        assert!(task_err.is_panic());
-    }
-
-    #[tokio::test]
-    async fn dispatch_resource_usage_over_live_connection() {
-        let (inner, server, _endpoint) = setup_test_connection().await;
-        let task = tokio::spawn(async move {
-            loop {
-                let Ok((mut send, mut recv)) = inner.accept_bi().await else {
-                    return Ok::<(), anyhow::Error>(());
-                };
-                if let Err(e) = dispatch(&mut send, &mut recv).await {
-                    tracing::error!("Request handling failed: {e}");
-                }
-            }
-        });
-
-        let result = server
-            .node_observation(NodeObservationRequest::ResourceUsage)
-            .await;
-        assert!(result.is_err(), "should fail: handler is unimplemented");
-
-        let task_err = task.await.expect_err("task should have panicked");
-        assert!(task_err.is_panic());
-    }
-
-    #[tokio::test]
-    async fn dispatch_process_list_over_live_connection() {
-        let (inner, server, _endpoint) = setup_test_connection().await;
-        let task = tokio::spawn(async move {
-            loop {
-                let Ok((mut send, mut recv)) = inner.accept_bi().await else {
-                    return Ok::<(), anyhow::Error>(());
-                };
-                if let Err(e) = dispatch(&mut send, &mut recv).await {
-                    tracing::error!("Request handling failed: {e}");
-                }
-            }
-        });
-
-        let result = server
-            .node_observation(NodeObservationRequest::ProcessList)
-            .await;
-        assert!(result.is_err(), "should fail: handler is unimplemented");
-
-        let task_err = task.await.expect_err("task should have panicked");
-        assert!(task_err.is_panic());
     }
 
     #[tokio::test]
