@@ -8,17 +8,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
-- Implement the full `node_power` family directly in `roxyd`. Immediate
-  `NodePowerRequest::Reboot` and `NodePowerRequest::Shutdown` (and the legacy
-  flat `reboot`/`shutdown` compatibility requests) now prepare a pending
-  reboot or power-off operation and only execute the destructive system call
-  after `roxyd` has written `NodePowerResponse::Initiated` successfully on
-  the request stream. If the response write fails, the pending operation is
-  cancelled without rebooting or powering off. Immediate variants remain
-  Linux-only and return `"invalid command"` on other platforms.
-  `NodePowerRequest::GracefulReboot` and `NodePowerRequest::GracefulShutdown`
-  spawn the platform's standard reboot/poweroff command and return
-  `"fail"` if the process could not be started.
+- `roxyd` now handles node power-control requests from a Manager (immediate
+  and graceful reboot/shutdown), replacing the previous unimplemented
+  scaffolding. On Linux, immediate reboot and shutdown run in the background;
+  grouped `node_power` requests do not return a protocol response for these
+  operations. Graceful reboot and shutdown spawn the platform's standard
+  reboot or poweroff command and report success or `"fail"` to the Manager.
+  Legacy flat `reboot` and `shutdown` requests use the same behavior.
+  Immediate reboot and shutdown are not supported on non-Linux platforms.
 
 ## [0.6.0] - 2026-04-16
 

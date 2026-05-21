@@ -227,18 +227,7 @@ async fn dispatch(send: &mut quinn::SendStream, recv: &mut quinn::RecvStream) ->
     dispatch_with_executor(send, recv, Arc::new(SystemPowerExecutor)).await
 }
 
-/// Power-aware dispatch entry that takes a caller-supplied
-/// [`PowerExecutor`].
-///
-/// Immediate `NodePowerRequest::Reboot` and `NodePowerRequest::Shutdown`
-/// (and the legacy flat `reboot`/`shutdown` compatibility paths) prepare a
-/// [`handlers::power::PendingPowerOperation`] inside the handler but do not
-/// execute the destructive system call. After
-/// [`review_protocol::request::handle`] returns successfully — which means
-/// the `NodePowerResponse::Initiated` response has been written to the
-/// stream — this function releases the pending operation. If the response
-/// write fails, the pending operation is dropped without being released and
-/// the executor is never invoked.
+/// Power-aware dispatch entry that takes a caller-supplied [`PowerExecutor`].
 ///
 /// # Errors
 ///
@@ -249,19 +238,9 @@ async fn dispatch_with_executor(
     executor: Arc<dyn PowerExecutor>,
 ) -> Result<()> {
     let mut handler = RequestHandler::new(executor);
-    let result = review_protocol::request::handle(&mut handler, send, recv)
+    review_protocol::request::handle(&mut handler, send, recv)
         .await
-        .map_err(|e| anyhow::anyhow!("{e}"));
-
-    if result.is_ok() {
-        // The response stream wrote successfully; release any prepared
-        // immediate power operations so they proceed to reboot/poweroff.
-        let _join_handles = handler.power.release_pending();
-    }
-    // On error, `handler` is dropped here; any unreleased pending power
-    // operations observe the closed sender and exit without rebooting.
-
-    result
+        .map_err(|e| anyhow::anyhow!("{e}"))
 }
 
 /// Request handler that maps review-protocol requests into roxyd handlers.
@@ -1191,35 +1170,6 @@ mod tests {
     /// reaches the peer (simulated here by closing the stream from the
     /// server side after the connection-level send), the pending immediate
     /// power operation is not released and the executor is never invoked.
-    #[tokio::test]
-    async fn pending_reboot_cancelled_on_dispatch_error() {
-        use std::sync::atomic::Ordering;
-
-        // Build a handler and call into it directly to simulate the dispatch
-        // path. This isolates the cancellation invariant from the QUIC
-        // transport.
-        let mock = Arc::new(handlers::power::MockPowerExecutor::default());
-        let mut handler = super::RequestHandler::new(mock.clone() as Arc<dyn PowerExecutor>);
-
-        // Drive the node_power handler directly. On non-Linux this returns
-        // an error and there is nothing pending — the assertion holds.
-        let _ = review_protocol::request::Handler::node_power(
-            &mut handler,
-            review_protocol::types::node::NodePowerRequest::Reboot,
-        )
-        .await;
-
-        // Drop without calling release_pending — simulates a response-write
-        // failure in dispatch_with_executor.
-        drop(handler);
-
-        for _ in 0..20 {
-            tokio::task::yield_now().await;
-        }
-
-        assert_eq!(mock.reboot_count.load(Ordering::SeqCst), 0);
-    }
-
     #[tokio::test]
     async fn dispatch_resource_usage_over_live_connection() {
         let (inner, server, _endpoint) = setup_test_connection().await;
