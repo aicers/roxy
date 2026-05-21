@@ -27,20 +27,6 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Add explicit shutdown path for `roxyd` that handles OS signals
   (SIGINT/SIGTERM), cancels any in-progress connection attempt or
   accept/reconnect loop cleanly, and logs shutdown lifecycle events.
-
-### Changed
-
-- Simplified `list_files` to return only file names instead of unused size and
-  modified-time data.
-
-### Removed
-
-- Removed the direct `chrono` dependency.
-
-## [0.6.0] - 2026-04-16
-
-### Added
-
 - Add tracing in `roxyd` for incoming `review-protocol` request dispatch, logging
   the selected handler group and request identifier.
 - Add `roxyd` binary entrypoint as a new implementation path for QUIC/mTLS
@@ -58,6 +44,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `network_interface`, `version`). Legacy flat methods (`reboot`,
   `shutdown`, `process_list`, `resource_usage`) now delegate through
   the grouped handlers as compatibility adapters.
+
+### Changed
+
+- Simplified `list_files` to return only file names instead of unused size and
+  modified-time data.
+
+### Removed
+
+- Removed the direct `chrono` dependency.
 
 ### Fixed
 

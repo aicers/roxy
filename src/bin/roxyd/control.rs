@@ -933,12 +933,18 @@ mod tests {
     async fn dispatch_reboot_over_live_connection() {
         use std::sync::atomic::Ordering;
 
+        use review_protocol::server::node::NodePowerOutcome;
+        use review_protocol::types::node::NodePowerRequest;
+
         let (inner, server, _endpoint) = setup_test_connection().await;
         let mock = Arc::new(handlers::power::MockPowerExecutor::default());
         let task = spawn_dispatch_loop_with_mock(inner, mock.clone());
 
-        let result = server.send_reboot_cmd().await;
-        assert!(result.is_ok(), "reboot should be accepted: {result:?}");
+        let result = server.node_power(NodePowerRequest::Reboot).await;
+        assert!(
+            matches!(result, Ok(NodePowerOutcome::Sent)),
+            "reboot should be accepted: {result:?}"
+        );
 
         // Give the background reboot task time to call the mock executor.
         for _ in 0..50 {
@@ -959,12 +965,18 @@ mod tests {
     async fn dispatch_shutdown_over_live_connection() {
         use std::sync::atomic::Ordering;
 
+        use review_protocol::server::node::NodePowerOutcome;
+        use review_protocol::types::node::NodePowerRequest;
+
         let (inner, server, _endpoint) = setup_test_connection().await;
         let mock = Arc::new(handlers::power::MockPowerExecutor::default());
         let task = spawn_dispatch_loop_with_mock(inner, mock.clone());
 
-        let result = server.send_shutdown_cmd().await;
-        assert!(result.is_ok(), "shutdown should be accepted: {result:?}");
+        let result = server.node_power(NodePowerRequest::Shutdown).await;
+        assert!(
+            matches!(result, Ok(NodePowerOutcome::Sent)),
+            "shutdown should be accepted: {result:?}"
+        );
 
         for _ in 0..50 {
             if mock.power_off_count.load(Ordering::SeqCst) > 0 {
@@ -982,17 +994,28 @@ mod tests {
     #[cfg(not(target_os = "linux"))]
     #[tokio::test]
     async fn dispatch_reboot_over_live_connection_non_linux() {
+        use std::sync::atomic::Ordering;
+
+        use review_protocol::server::node::NodePowerOutcome;
+        use review_protocol::types::node::NodePowerRequest;
+
         let (inner, server, _endpoint) = setup_test_connection().await;
         let mock = Arc::new(handlers::power::MockPowerExecutor::default());
         let task = spawn_dispatch_loop_with_mock(inner, mock.clone());
 
-        let err = server
-            .send_reboot_cmd()
-            .await
-            .expect_err("immediate reboot is Linux-only");
+        let result = server.node_power(NodePowerRequest::Reboot).await;
         assert!(
-            err.to_string().contains("invalid command"),
-            "expected 'invalid command', got: {err}"
+            matches!(result, Ok(NodePowerOutcome::Sent)),
+            "request should be sent: {result:?}"
+        );
+
+        for _ in 0..50 {
+            tokio::task::yield_now().await;
+        }
+        assert_eq!(
+            mock.reboot_count.load(Ordering::SeqCst),
+            0,
+            "immediate reboot must not invoke the executor on non-Linux"
         );
 
         drop(server);
@@ -1002,17 +1025,28 @@ mod tests {
     #[cfg(not(target_os = "linux"))]
     #[tokio::test]
     async fn dispatch_shutdown_over_live_connection_non_linux() {
+        use std::sync::atomic::Ordering;
+
+        use review_protocol::server::node::NodePowerOutcome;
+        use review_protocol::types::node::NodePowerRequest;
+
         let (inner, server, _endpoint) = setup_test_connection().await;
         let mock = Arc::new(handlers::power::MockPowerExecutor::default());
         let task = spawn_dispatch_loop_with_mock(inner, mock.clone());
 
-        let err = server
-            .send_shutdown_cmd()
-            .await
-            .expect_err("immediate shutdown is Linux-only");
+        let result = server.node_power(NodePowerRequest::Shutdown).await;
         assert!(
-            err.to_string().contains("invalid command"),
-            "expected 'invalid command', got: {err}"
+            matches!(result, Ok(NodePowerOutcome::Sent)),
+            "request should be sent: {result:?}"
+        );
+
+        for _ in 0..50 {
+            tokio::task::yield_now().await;
+        }
+        assert_eq!(
+            mock.power_off_count.load(Ordering::SeqCst),
+            0,
+            "immediate shutdown must not invoke the executor on non-Linux"
         );
 
         drop(server);
@@ -1024,7 +1058,8 @@ mod tests {
     async fn dispatch_node_power_reboot_over_live_connection() {
         use std::sync::atomic::Ordering;
 
-        use review_protocol::types::node::{NodePowerRequest, NodePowerResponse};
+        use review_protocol::server::node::NodePowerOutcome;
+        use review_protocol::types::node::NodePowerRequest;
 
         let (inner, server, _endpoint) = setup_test_connection().await;
         let mock = Arc::new(handlers::power::MockPowerExecutor::default());
@@ -1034,7 +1069,7 @@ mod tests {
             .node_power(NodePowerRequest::Reboot)
             .await
             .expect("node_power reboot should succeed");
-        assert_eq!(resp, NodePowerResponse::Initiated);
+        assert!(matches!(resp, NodePowerOutcome::Sent));
 
         for _ in 0..50 {
             if mock.reboot_count.load(Ordering::SeqCst) > 0 {
@@ -1051,20 +1086,25 @@ mod tests {
     #[cfg(not(target_os = "linux"))]
     #[tokio::test]
     async fn dispatch_node_power_reboot_over_live_connection_non_linux() {
+        use std::sync::atomic::Ordering;
+
+        use review_protocol::server::node::NodePowerOutcome;
         use review_protocol::types::node::NodePowerRequest;
 
         let (inner, server, _endpoint) = setup_test_connection().await;
         let mock = Arc::new(handlers::power::MockPowerExecutor::default());
         let task = spawn_dispatch_loop_with_mock(inner, mock.clone());
 
-        let err = server
-            .node_power(NodePowerRequest::Reboot)
-            .await
-            .expect_err("immediate reboot is Linux-only");
+        let result = server.node_power(NodePowerRequest::Reboot).await;
         assert!(
-            err.to_string().contains("invalid command"),
-            "expected 'invalid command', got: {err}"
+            matches!(result, Ok(NodePowerOutcome::Sent)),
+            "node_power reboot should be sent: {result:?}"
         );
+
+        for _ in 0..50 {
+            tokio::task::yield_now().await;
+        }
+        assert_eq!(mock.reboot_count.load(Ordering::SeqCst), 0);
 
         drop(server);
         let _ = task.await.expect("dispatch task should not panic");
@@ -1074,6 +1114,7 @@ mod tests {
     async fn dispatch_node_power_graceful_reboot_over_live_connection() {
         use std::sync::atomic::Ordering;
 
+        use review_protocol::server::node::NodePowerOutcome;
         use review_protocol::types::node::{NodePowerRequest, NodePowerResponse};
 
         let (inner, server, _endpoint) = setup_test_connection().await;
@@ -1084,7 +1125,10 @@ mod tests {
             .node_power(NodePowerRequest::GracefulReboot)
             .await
             .expect("graceful reboot should succeed");
-        assert_eq!(resp, NodePowerResponse::Initiated);
+        assert!(matches!(
+            resp,
+            NodePowerOutcome::Response(NodePowerResponse::Initiated)
+        ));
         assert_eq!(mock.graceful_reboot_count.load(Ordering::SeqCst), 1);
         // Graceful path must not trigger immediate reboot.
         assert_eq!(mock.reboot_count.load(Ordering::SeqCst), 0);
@@ -1097,6 +1141,7 @@ mod tests {
     async fn dispatch_node_power_graceful_shutdown_over_live_connection() {
         use std::sync::atomic::Ordering;
 
+        use review_protocol::server::node::NodePowerOutcome;
         use review_protocol::types::node::{NodePowerRequest, NodePowerResponse};
 
         let (inner, server, _endpoint) = setup_test_connection().await;
@@ -1107,7 +1152,10 @@ mod tests {
             .node_power(NodePowerRequest::GracefulShutdown)
             .await
             .expect("graceful shutdown should succeed");
-        assert_eq!(resp, NodePowerResponse::Initiated);
+        assert!(matches!(
+            resp,
+            NodePowerOutcome::Response(NodePowerResponse::Initiated)
+        ));
         assert_eq!(mock.graceful_power_off_count.load(Ordering::SeqCst), 1);
 
         drop(server);
@@ -1186,7 +1234,9 @@ mod tests {
             }
         });
 
-        let result = server.get_resource_usage().await;
+        let result = server
+            .node_observation(NodeObservationRequest::ResourceUsage)
+            .await;
         assert!(result.is_err(), "should fail: handler is unimplemented");
 
         let task_err = task.await.expect_err("task should have panicked");
@@ -1207,7 +1257,9 @@ mod tests {
             }
         });
 
-        let result = server.get_process_list().await;
+        let result = server
+            .node_observation(NodeObservationRequest::ProcessList)
+            .await;
         assert!(result.is_err(), "should fail: handler is unimplemented");
 
         let task_err = task.await.expect_err("task should have panicked");
