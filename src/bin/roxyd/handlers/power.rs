@@ -17,11 +17,11 @@ use review_protocol::types::node::{NodePowerRequest, NodePowerResponse};
 const ERR_INVALID_COMMAND: &str = "invalid command";
 const ERR_FAIL: &str = "fail";
 
-/// Executes the platform-specific power-control operations.
+/// Performs the platform-specific power-control operations.
 ///
-/// Production code uses [`SystemPowerExecutor`]; tests inject a mock so that
+/// Production code uses [`SystemPowerBackend`]; tests inject a mock so that
 /// power operations can be observed without actually rebooting the host.
-pub(crate) trait PowerExecutor: Send + Sync {
+pub(crate) trait PowerBackend: Send + Sync {
     /// Performs an immediate reboot. On Linux this calls
     /// `nix::sys::reboot::reboot`, which does not return on success.
     ///
@@ -50,11 +50,11 @@ pub(crate) trait PowerExecutor: Send + Sync {
     fn graceful_power_off(&self) -> Result<(), ()>;
 }
 
-/// Production executor that triggers reboot/power-off via `nix::sys::reboot`
+/// Production backend that triggers reboot/power-off via `nix::sys::reboot`
 /// (immediate) and the platform's standard CLI tools (graceful).
-pub(crate) struct SystemPowerExecutor;
+pub(crate) struct SystemPowerBackend;
 
-impl PowerExecutor for SystemPowerExecutor {
+impl PowerBackend for SystemPowerBackend {
     fn reboot(&self) {
         #[cfg(target_os = "linux")]
         {
@@ -124,12 +124,12 @@ impl PowerExecutor for SystemPowerExecutor {
 
 /// Per-stream handler state for power requests.
 pub(crate) struct PowerHandler {
-    executor: Arc<dyn PowerExecutor>,
+    backend: Arc<dyn PowerBackend>,
 }
 
 impl PowerHandler {
-    pub(crate) fn new(executor: Arc<dyn PowerExecutor>) -> Self {
-        Self { executor }
+    pub(crate) fn new(backend: Arc<dyn PowerBackend>) -> Self {
+        Self { backend }
     }
 
     /// Handles a [`NodePowerRequest`].
@@ -161,9 +161,9 @@ impl PowerHandler {
     fn immediate_reboot(&self) -> Result<NodePowerResponse, String> {
         #[cfg(target_os = "linux")]
         {
-            let executor = self.executor.clone();
+            let backend = self.backend.clone();
             tokio::spawn(async move {
-                executor.reboot();
+                backend.reboot();
             });
             Ok(NodePowerResponse::Initiated)
         }
@@ -177,9 +177,9 @@ impl PowerHandler {
     fn immediate_shutdown(&self) -> Result<NodePowerResponse, String> {
         #[cfg(target_os = "linux")]
         {
-            let executor = self.executor.clone();
+            let backend = self.backend.clone();
             tokio::spawn(async move {
-                executor.power_off();
+                backend.power_off();
             });
             Ok(NodePowerResponse::Initiated)
         }
@@ -190,14 +190,14 @@ impl PowerHandler {
     }
 
     fn graceful_reboot(&self) -> Result<NodePowerResponse, String> {
-        match self.executor.graceful_reboot() {
+        match self.backend.graceful_reboot() {
             Ok(()) => Ok(NodePowerResponse::Initiated),
             Err(()) => Err(ERR_FAIL.to_string()),
         }
     }
 
     fn graceful_power_off(&self) -> Result<NodePowerResponse, String> {
-        match self.executor.graceful_power_off() {
+        match self.backend.graceful_power_off() {
             Ok(()) => Ok(NodePowerResponse::Initiated),
             Err(()) => Err(ERR_FAIL.to_string()),
         }
@@ -205,18 +205,18 @@ impl PowerHandler {
 }
 
 #[cfg(test)]
-pub(crate) use mock::MockPowerExecutor;
+pub(crate) use mock::MockPowerBackend;
 
 #[cfg(test)]
 pub(crate) mod mock {
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
-    use super::PowerExecutor;
+    use super::PowerBackend;
 
-    /// In-memory mock executor used by tests. Records call counts and can
+    /// In-memory mock backend used by tests. Records call counts and can
     /// be configured to fail graceful operations.
     #[derive(Default)]
-    pub(crate) struct MockPowerExecutor {
+    pub(crate) struct MockPowerBackend {
         pub reboot_count: AtomicUsize,
         pub power_off_count: AtomicUsize,
         pub graceful_reboot_count: AtomicUsize,
@@ -225,7 +225,7 @@ pub(crate) mod mock {
         pub graceful_power_off_fail: AtomicBool,
     }
 
-    impl PowerExecutor for MockPowerExecutor {
+    impl PowerBackend for MockPowerBackend {
         fn reboot(&self) {
             self.reboot_count.fetch_add(1, Ordering::SeqCst);
         }
@@ -258,14 +258,14 @@ pub(crate) mod mock {
 mod tests {
     use std::sync::atomic::Ordering;
 
-    use super::mock::MockPowerExecutor;
+    use super::mock::MockPowerBackend;
     use super::*;
 
     #[cfg(target_os = "linux")]
     #[tokio::test]
     async fn handle_reboot_on_linux_spawns_immediate_action() {
-        let mock = Arc::new(MockPowerExecutor::default());
-        let mut handler = PowerHandler::new(mock.clone() as Arc<dyn PowerExecutor>);
+        let mock = Arc::new(MockPowerBackend::default());
+        let mut handler = PowerHandler::new(mock.clone() as Arc<dyn PowerBackend>);
 
         let resp = handler
             .handle(NodePowerRequest::Reboot)
@@ -286,8 +286,8 @@ mod tests {
     #[cfg(target_os = "linux")]
     #[tokio::test]
     async fn handle_shutdown_on_linux_spawns_immediate_action() {
-        let mock = Arc::new(MockPowerExecutor::default());
-        let mut handler = PowerHandler::new(mock.clone() as Arc<dyn PowerExecutor>);
+        let mock = Arc::new(MockPowerBackend::default());
+        let mut handler = PowerHandler::new(mock.clone() as Arc<dyn PowerBackend>);
 
         let resp = handler
             .handle(NodePowerRequest::Shutdown)
@@ -307,8 +307,8 @@ mod tests {
     #[cfg(not(target_os = "linux"))]
     #[tokio::test]
     async fn handle_reboot_on_non_linux_returns_invalid_command() {
-        let mock = Arc::new(MockPowerExecutor::default());
-        let mut handler = PowerHandler::new(mock.clone() as Arc<dyn PowerExecutor>);
+        let mock = Arc::new(MockPowerBackend::default());
+        let mut handler = PowerHandler::new(mock.clone() as Arc<dyn PowerBackend>);
 
         let err = handler
             .handle(NodePowerRequest::Reboot)
@@ -321,8 +321,8 @@ mod tests {
     #[cfg(not(target_os = "linux"))]
     #[tokio::test]
     async fn handle_shutdown_on_non_linux_returns_invalid_command() {
-        let mock = Arc::new(MockPowerExecutor::default());
-        let mut handler = PowerHandler::new(mock.clone() as Arc<dyn PowerExecutor>);
+        let mock = Arc::new(MockPowerBackend::default());
+        let mut handler = PowerHandler::new(mock.clone() as Arc<dyn PowerBackend>);
 
         let err = handler
             .handle(NodePowerRequest::Shutdown)
@@ -334,8 +334,8 @@ mod tests {
 
     #[tokio::test]
     async fn handle_graceful_reboot_returns_initiated_on_success() {
-        let mock = Arc::new(MockPowerExecutor::default());
-        let mut handler = PowerHandler::new(mock.clone() as Arc<dyn PowerExecutor>);
+        let mock = Arc::new(MockPowerBackend::default());
+        let mut handler = PowerHandler::new(mock.clone() as Arc<dyn PowerBackend>);
 
         let resp = handler
             .handle(NodePowerRequest::GracefulReboot)
@@ -347,9 +347,9 @@ mod tests {
 
     #[tokio::test]
     async fn handle_graceful_reboot_returns_fail_on_spawn_error() {
-        let mock = Arc::new(MockPowerExecutor::default());
+        let mock = Arc::new(MockPowerBackend::default());
         mock.graceful_reboot_fail.store(true, Ordering::SeqCst);
-        let mut handler = PowerHandler::new(mock.clone() as Arc<dyn PowerExecutor>);
+        let mut handler = PowerHandler::new(mock.clone() as Arc<dyn PowerBackend>);
 
         let err = handler
             .handle(NodePowerRequest::GracefulReboot)
@@ -360,8 +360,8 @@ mod tests {
 
     #[tokio::test]
     async fn handle_graceful_shutdown_returns_initiated_on_success() {
-        let mock = Arc::new(MockPowerExecutor::default());
-        let mut handler = PowerHandler::new(mock.clone() as Arc<dyn PowerExecutor>);
+        let mock = Arc::new(MockPowerBackend::default());
+        let mut handler = PowerHandler::new(mock.clone() as Arc<dyn PowerBackend>);
 
         let resp = handler
             .handle(NodePowerRequest::GracefulShutdown)
@@ -373,9 +373,9 @@ mod tests {
 
     #[tokio::test]
     async fn handle_graceful_shutdown_returns_fail_on_spawn_error() {
-        let mock = Arc::new(MockPowerExecutor::default());
+        let mock = Arc::new(MockPowerBackend::default());
         mock.graceful_power_off_fail.store(true, Ordering::SeqCst);
-        let mut handler = PowerHandler::new(mock.clone() as Arc<dyn PowerExecutor>);
+        let mut handler = PowerHandler::new(mock.clone() as Arc<dyn PowerBackend>);
 
         let err = handler
             .handle(NodePowerRequest::GracefulShutdown)

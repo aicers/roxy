@@ -8,6 +8,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- Add explicit shutdown path for `roxyd` that handles OS signals
+  (SIGINT/SIGTERM), cancels any in-progress connection attempt or
+  accept/reconnect loop cleanly, and logs shutdown lifecycle events.
 - `roxyd` now handles node power-control requests from a Manager (immediate
   and graceful reboot/shutdown), replacing the previous unimplemented
   scaffolding. On Linux, immediate reboot and shutdown run in the background;
@@ -17,13 +20,19 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   Legacy flat `reboot` and `shutdown` requests use the same behavior.
   Immediate reboot and shutdown are not supported on non-Linux platforms.
 
+### Changed
+
+- Simplified `list_files` to return only file names instead of unused size and
+  modified-time data.
+
+### Removed
+
+- Removed the direct `chrono` dependency.
+
 ## [0.6.0] - 2026-04-16
 
 ### Added
 
-- Add explicit shutdown path for `roxyd` that handles OS signals
-  (SIGINT/SIGTERM), cancels any in-progress connection attempt or
-  accept/reconnect loop cleanly, and logs shutdown lifecycle events.
 - Add tracing in `roxyd` for incoming `review-protocol` request dispatch, logging
   the selected handler group and request identifier.
 - Add `roxyd` binary entrypoint as a new implementation path for QUIC/mTLS

@@ -18,7 +18,9 @@ use review_protocol::types::node::{
 };
 use tokio::sync::watch;
 
-use super::handlers::power::{PowerExecutor, PowerHandler, SystemPowerExecutor};
+#[cfg(test)]
+use super::handlers::power::PowerBackend;
+use super::handlers::power::{PowerHandler, SystemPowerBackend};
 use super::{handlers, settings::Settings};
 
 /// The review-protocol version required by this client.
@@ -224,20 +226,7 @@ impl Connection {
 ///
 /// Returns an error if request reading or response sending fails.
 async fn dispatch(send: &mut quinn::SendStream, recv: &mut quinn::RecvStream) -> Result<()> {
-    dispatch_with_executor(send, recv, Arc::new(SystemPowerExecutor)).await
-}
-
-/// Power-aware dispatch entry that takes a caller-supplied [`PowerExecutor`].
-///
-/// # Errors
-///
-/// Returns an error if request reading or response sending fails.
-async fn dispatch_with_executor(
-    send: &mut quinn::SendStream,
-    recv: &mut quinn::RecvStream,
-    executor: Arc<dyn PowerExecutor>,
-) -> Result<()> {
-    let mut handler = RequestHandler::new(executor);
+    let mut handler = RequestHandler::default();
     review_protocol::request::handle(&mut handler, send, recv)
         .await
         .map_err(|e| anyhow::anyhow!("{e}"))
@@ -257,10 +246,19 @@ struct RequestHandler {
     power: PowerHandler,
 }
 
-impl RequestHandler {
-    fn new(executor: Arc<dyn PowerExecutor>) -> Self {
+impl Default for RequestHandler {
+    fn default() -> Self {
         Self {
-            power: PowerHandler::new(executor),
+            power: PowerHandler::new(Arc::new(SystemPowerBackend)),
+        }
+    }
+}
+
+#[cfg(test)]
+impl RequestHandler {
+    fn with_power_backend(backend: Arc<dyn PowerBackend>) -> Self {
+        Self {
+            power: PowerHandler::new(backend),
         }
     }
 }
@@ -886,20 +884,22 @@ mod tests {
 
     // -- Tests: RequestCode dispatch over live connection --------------
 
-    /// Spawns a dispatch loop that uses the provided mock executor for every
+    /// Spawns a dispatch loop that uses the provided mock power backend for every
     /// stream accepted on this connection. Returns the task handle so the
     /// caller can drive shutdown.
     fn spawn_dispatch_loop_with_mock(
         inner: review_protocol::client::Connection,
-        mock: Arc<handlers::power::MockPowerExecutor>,
+        mock: Arc<handlers::power::MockPowerBackend>,
     ) -> tokio::task::JoinHandle<Result<(), anyhow::Error>> {
-        let executor: Arc<dyn PowerExecutor> = mock;
+        let backend: Arc<dyn PowerBackend> = mock;
         tokio::spawn(async move {
             loop {
                 let Ok((mut send, mut recv)) = inner.accept_bi().await else {
                     return Ok::<(), anyhow::Error>(());
                 };
-                if let Err(e) = dispatch_with_executor(&mut send, &mut recv, executor.clone()).await
+                let mut handler = super::RequestHandler::with_power_backend(backend.clone());
+                if let Err(e) =
+                    review_protocol::request::handle(&mut handler, &mut send, &mut recv).await
                 {
                     tracing::error!("Request handling failed: {e}");
                 }
@@ -916,7 +916,7 @@ mod tests {
         use review_protocol::types::node::NodePowerRequest;
 
         let (inner, server, _endpoint) = setup_test_connection().await;
-        let mock = Arc::new(handlers::power::MockPowerExecutor::default());
+        let mock = Arc::new(handlers::power::MockPowerBackend::default());
         let task = spawn_dispatch_loop_with_mock(inner, mock.clone());
 
         let result = server.node_power(NodePowerRequest::Reboot).await;
@@ -925,7 +925,7 @@ mod tests {
             "reboot should be accepted: {result:?}"
         );
 
-        // Give the background reboot task time to call the mock executor.
+        // Give the background reboot task time to call the mock backend.
         for _ in 0..50 {
             if mock.reboot_count.load(Ordering::SeqCst) > 0 {
                 break;
@@ -948,7 +948,7 @@ mod tests {
         use review_protocol::types::node::NodePowerRequest;
 
         let (inner, server, _endpoint) = setup_test_connection().await;
-        let mock = Arc::new(handlers::power::MockPowerExecutor::default());
+        let mock = Arc::new(handlers::power::MockPowerBackend::default());
         let task = spawn_dispatch_loop_with_mock(inner, mock.clone());
 
         let result = server.node_power(NodePowerRequest::Shutdown).await;
@@ -979,7 +979,7 @@ mod tests {
         use review_protocol::types::node::NodePowerRequest;
 
         let (inner, server, _endpoint) = setup_test_connection().await;
-        let mock = Arc::new(handlers::power::MockPowerExecutor::default());
+        let mock = Arc::new(handlers::power::MockPowerBackend::default());
         let task = spawn_dispatch_loop_with_mock(inner, mock.clone());
 
         let result = server.node_power(NodePowerRequest::Reboot).await;
@@ -994,7 +994,7 @@ mod tests {
         assert_eq!(
             mock.reboot_count.load(Ordering::SeqCst),
             0,
-            "immediate reboot must not invoke the executor on non-Linux"
+            "immediate reboot must not invoke the backend on non-Linux"
         );
 
         drop(server);
@@ -1010,7 +1010,7 @@ mod tests {
         use review_protocol::types::node::NodePowerRequest;
 
         let (inner, server, _endpoint) = setup_test_connection().await;
-        let mock = Arc::new(handlers::power::MockPowerExecutor::default());
+        let mock = Arc::new(handlers::power::MockPowerBackend::default());
         let task = spawn_dispatch_loop_with_mock(inner, mock.clone());
 
         let result = server.node_power(NodePowerRequest::Shutdown).await;
@@ -1025,7 +1025,7 @@ mod tests {
         assert_eq!(
             mock.power_off_count.load(Ordering::SeqCst),
             0,
-            "immediate shutdown must not invoke the executor on non-Linux"
+            "immediate shutdown must not invoke the backend on non-Linux"
         );
 
         drop(server);
@@ -1041,7 +1041,7 @@ mod tests {
         use review_protocol::types::node::NodePowerRequest;
 
         let (inner, server, _endpoint) = setup_test_connection().await;
-        let mock = Arc::new(handlers::power::MockPowerExecutor::default());
+        let mock = Arc::new(handlers::power::MockPowerBackend::default());
         let task = spawn_dispatch_loop_with_mock(inner, mock.clone());
 
         let resp = server
@@ -1071,7 +1071,7 @@ mod tests {
         use review_protocol::types::node::NodePowerRequest;
 
         let (inner, server, _endpoint) = setup_test_connection().await;
-        let mock = Arc::new(handlers::power::MockPowerExecutor::default());
+        let mock = Arc::new(handlers::power::MockPowerBackend::default());
         let task = spawn_dispatch_loop_with_mock(inner, mock.clone());
 
         let result = server.node_power(NodePowerRequest::Reboot).await;
@@ -1097,7 +1097,7 @@ mod tests {
         use review_protocol::types::node::{NodePowerRequest, NodePowerResponse};
 
         let (inner, server, _endpoint) = setup_test_connection().await;
-        let mock = Arc::new(handlers::power::MockPowerExecutor::default());
+        let mock = Arc::new(handlers::power::MockPowerBackend::default());
         let task = spawn_dispatch_loop_with_mock(inner, mock.clone());
 
         let resp = server
@@ -1124,7 +1124,7 @@ mod tests {
         use review_protocol::types::node::{NodePowerRequest, NodePowerResponse};
 
         let (inner, server, _endpoint) = setup_test_connection().await;
-        let mock = Arc::new(handlers::power::MockPowerExecutor::default());
+        let mock = Arc::new(handlers::power::MockPowerBackend::default());
         let task = spawn_dispatch_loop_with_mock(inner, mock.clone());
 
         let resp = server
@@ -1148,7 +1148,7 @@ mod tests {
         use review_protocol::types::node::NodePowerRequest;
 
         let (inner, server, _endpoint) = setup_test_connection().await;
-        let mock = Arc::new(handlers::power::MockPowerExecutor::default());
+        let mock = Arc::new(handlers::power::MockPowerBackend::default());
         mock.graceful_reboot_fail.store(true, Ordering::SeqCst);
         let task = spawn_dispatch_loop_with_mock(inner, mock.clone());
 
@@ -1166,10 +1166,6 @@ mod tests {
         let _ = task.await.expect("dispatch task should not panic");
     }
 
-    /// Verifies that when the response stream is dropped before the response
-    /// reaches the peer (simulated here by closing the stream from the
-    /// server side after the connection-level send), the pending immediate
-    /// power operation is not released and the executor is never invoked.
     #[tokio::test]
     async fn dispatch_resource_usage_over_live_connection() {
         let (inner, server, _endpoint) = setup_test_connection().await;
