@@ -18,9 +18,7 @@ use review_protocol::types::node::{
 };
 use tokio::sync::watch;
 
-#[cfg(test)]
-use super::handlers::power::PowerBackend;
-use super::handlers::power::{PowerHandler, SystemPowerBackend};
+use super::handlers::power::{PowerBackend, SystemPowerBackend};
 use super::{handlers, settings::Settings};
 
 /// The review-protocol version required by this client.
@@ -243,13 +241,13 @@ async fn dispatch(send: &mut quinn::SendStream, recv: &mut quinn::RecvStream) ->
 /// `resource_usage`) are temporary protocol-compatibility adapters that
 /// route through the grouped handlers.
 struct RequestHandler {
-    power: PowerHandler,
+    power_backend: Arc<dyn PowerBackend>,
 }
 
 impl Default for RequestHandler {
     fn default() -> Self {
         Self {
-            power: PowerHandler::new(Arc::new(SystemPowerBackend)),
+            power_backend: Arc::new(SystemPowerBackend),
         }
     }
 }
@@ -258,7 +256,7 @@ impl Default for RequestHandler {
 impl RequestHandler {
     fn with_power_backend(backend: Arc<dyn PowerBackend>) -> Self {
         Self {
-            power: PowerHandler::new(backend),
+            power_backend: backend,
         }
     }
 }
@@ -309,7 +307,7 @@ impl review_protocol::request::Handler for RequestHandler {
 
     async fn node_power(&mut self, req: NodePowerRequest) -> Result<NodePowerResponse, String> {
         tracing::info!(handler_group = "node_power", request = %req.service_id(), "Dispatching request");
-        self.power.handle(req).await
+        handlers::power::handle(req, self.power_backend.clone()).await
     }
 
     async fn node_observation(

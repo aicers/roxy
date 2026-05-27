@@ -2,18 +2,20 @@
 //!
 //! Immediate [`NodePowerRequest::Reboot`] and [`NodePowerRequest::Shutdown`]
 //! are fire-and-forget under review-protocol 0.19.0: the dispatch layer does
-//! not send a wire response. The handler spawns the destructive system call in
-//! the background so legacy flat `reboot`/`shutdown` compatibility paths can
+//! not send a wire response. The handler runs the destructive system call on a
+//! blocking thread so legacy flat `reboot`/`shutdown` compatibility paths can
 //! still return before the operation runs.
 //!
-//! Graceful variants spawn the platform reboot/poweroff command and return
-//! [`NodePowerResponse::Initiated`] on successful spawn, `"fail"` otherwise.
+//! Graceful variants spawn the platform reboot/poweroff command on a blocking
+//! thread and return [`NodePowerResponse::Initiated`] on successful spawn,
+//! `"fail"` otherwise.
 
 use std::process::Command;
 use std::sync::Arc;
 
 use review_protocol::types::node::{NodePowerRequest, NodePowerResponse};
 
+#[cfg(not(target_os = "linux"))]
 const ERR_INVALID_COMMAND: &str = "invalid command";
 const ERR_FAIL: &str = "fail";
 
@@ -122,85 +124,67 @@ impl PowerBackend for SystemPowerBackend {
     }
 }
 
-/// Per-stream handler state for power requests.
-pub(crate) struct PowerHandler {
+/// Handles a [`NodePowerRequest`].
+///
+/// Immediate variants run the system call on a blocking thread and return
+/// without waiting for it to complete. The return value is not sent on the wire
+/// for grouped `NodePower` requests (review-protocol 0.19.0), but is still used
+/// by legacy flat `reboot`/`shutdown` compatibility paths.
+///
+/// # Errors
+///
+/// Returns `Err("invalid command")` for immediate requests on platforms where
+/// they are not supported, and `Err("fail")` if a graceful operation could not
+/// be initiated.
+pub(crate) async fn handle(
+    req: NodePowerRequest,
     backend: Arc<dyn PowerBackend>,
+) -> Result<NodePowerResponse, String> {
+    match req {
+        NodePowerRequest::Reboot => immediate_reboot(backend),
+        NodePowerRequest::Shutdown => immediate_shutdown(backend),
+        NodePowerRequest::GracefulReboot => graceful_reboot(backend).await,
+        NodePowerRequest::GracefulShutdown => graceful_power_off(backend).await,
+    }
 }
 
-impl PowerHandler {
-    pub(crate) fn new(backend: Arc<dyn PowerBackend>) -> Self {
-        Self { backend }
+fn immediate_reboot(backend: Arc<dyn PowerBackend>) -> Result<NodePowerResponse, String> {
+    #[cfg(target_os = "linux")]
+    {
+        tokio::task::spawn_blocking(move || backend.reboot());
+        Ok(NodePowerResponse::Initiated)
     }
-
-    /// Handles a [`NodePowerRequest`].
-    ///
-    /// Immediate variants spawn the system call in the background and return
-    /// without waiting for it to complete. The return value is not sent on the
-    /// wire for grouped `NodePower` requests (review-protocol 0.19.0), but is
-    /// still used by legacy flat `reboot`/`shutdown` compatibility paths.
-    ///
-    /// # Errors
-    ///
-    /// Returns `Err("invalid command")` for immediate requests on platforms
-    /// where they are not supported, and `Err("fail")` if a graceful
-    /// operation could not be initiated.
-    #[allow(clippy::unused_async)]
-    pub(crate) async fn handle(
-        &mut self,
-        req: NodePowerRequest,
-    ) -> Result<NodePowerResponse, String> {
-        match req {
-            NodePowerRequest::Reboot => self.immediate_reboot(),
-            NodePowerRequest::Shutdown => self.immediate_shutdown(),
-            NodePowerRequest::GracefulReboot => self.graceful_reboot(),
-            NodePowerRequest::GracefulShutdown => self.graceful_power_off(),
-        }
+    #[cfg(not(target_os = "linux"))]
+    {
+        drop(backend);
+        Err(ERR_INVALID_COMMAND.to_string())
     }
+}
 
-    #[cfg_attr(not(target_os = "linux"), allow(clippy::unused_self))]
-    fn immediate_reboot(&self) -> Result<NodePowerResponse, String> {
-        #[cfg(target_os = "linux")]
-        {
-            let backend = self.backend.clone();
-            tokio::spawn(async move {
-                backend.reboot();
-            });
-            Ok(NodePowerResponse::Initiated)
-        }
-        #[cfg(not(target_os = "linux"))]
-        {
-            Err(ERR_INVALID_COMMAND.to_string())
-        }
+fn immediate_shutdown(backend: Arc<dyn PowerBackend>) -> Result<NodePowerResponse, String> {
+    #[cfg(target_os = "linux")]
+    {
+        tokio::task::spawn_blocking(move || backend.power_off());
+        Ok(NodePowerResponse::Initiated)
     }
-
-    #[cfg_attr(not(target_os = "linux"), allow(clippy::unused_self))]
-    fn immediate_shutdown(&self) -> Result<NodePowerResponse, String> {
-        #[cfg(target_os = "linux")]
-        {
-            let backend = self.backend.clone();
-            tokio::spawn(async move {
-                backend.power_off();
-            });
-            Ok(NodePowerResponse::Initiated)
-        }
-        #[cfg(not(target_os = "linux"))]
-        {
-            Err(ERR_INVALID_COMMAND.to_string())
-        }
+    #[cfg(not(target_os = "linux"))]
+    {
+        drop(backend);
+        Err(ERR_INVALID_COMMAND.to_string())
     }
+}
 
-    fn graceful_reboot(&self) -> Result<NodePowerResponse, String> {
-        match self.backend.graceful_reboot() {
-            Ok(()) => Ok(NodePowerResponse::Initiated),
-            Err(()) => Err(ERR_FAIL.to_string()),
-        }
+async fn graceful_reboot(backend: Arc<dyn PowerBackend>) -> Result<NodePowerResponse, String> {
+    match tokio::task::spawn_blocking(move || backend.graceful_reboot()).await {
+        Ok(Ok(())) => Ok(NodePowerResponse::Initiated),
+        Ok(Err(())) | Err(_) => Err(ERR_FAIL.to_string()),
     }
+}
 
-    fn graceful_power_off(&self) -> Result<NodePowerResponse, String> {
-        match self.backend.graceful_power_off() {
-            Ok(()) => Ok(NodePowerResponse::Initiated),
-            Err(()) => Err(ERR_FAIL.to_string()),
-        }
+async fn graceful_power_off(backend: Arc<dyn PowerBackend>) -> Result<NodePowerResponse, String> {
+    match tokio::task::spawn_blocking(move || backend.graceful_power_off()).await {
+        Ok(Ok(())) => Ok(NodePowerResponse::Initiated),
+        Ok(Err(())) | Err(_) => Err(ERR_FAIL.to_string()),
     }
 }
 
@@ -265,10 +249,8 @@ mod tests {
     #[tokio::test]
     async fn handle_reboot_on_linux_spawns_immediate_action() {
         let mock = Arc::new(MockPowerBackend::default());
-        let mut handler = PowerHandler::new(mock.clone() as Arc<dyn PowerBackend>);
 
-        let resp = handler
-            .handle(NodePowerRequest::Reboot)
+        let resp = handle(NodePowerRequest::Reboot, mock.clone())
             .await
             .expect("reboot should succeed");
         assert_eq!(resp, NodePowerResponse::Initiated);
@@ -287,10 +269,8 @@ mod tests {
     #[tokio::test]
     async fn handle_shutdown_on_linux_spawns_immediate_action() {
         let mock = Arc::new(MockPowerBackend::default());
-        let mut handler = PowerHandler::new(mock.clone() as Arc<dyn PowerBackend>);
 
-        let resp = handler
-            .handle(NodePowerRequest::Shutdown)
+        let resp = handle(NodePowerRequest::Shutdown, mock.clone())
             .await
             .expect("shutdown should succeed");
         assert_eq!(resp, NodePowerResponse::Initiated);
@@ -308,10 +288,8 @@ mod tests {
     #[tokio::test]
     async fn handle_reboot_on_non_linux_returns_invalid_command() {
         let mock = Arc::new(MockPowerBackend::default());
-        let mut handler = PowerHandler::new(mock.clone() as Arc<dyn PowerBackend>);
 
-        let err = handler
-            .handle(NodePowerRequest::Reboot)
+        let err = handle(NodePowerRequest::Reboot, mock.clone())
             .await
             .expect_err("reboot should be unsupported on non-Linux");
         assert_eq!(err, ERR_INVALID_COMMAND);
@@ -322,10 +300,8 @@ mod tests {
     #[tokio::test]
     async fn handle_shutdown_on_non_linux_returns_invalid_command() {
         let mock = Arc::new(MockPowerBackend::default());
-        let mut handler = PowerHandler::new(mock.clone() as Arc<dyn PowerBackend>);
 
-        let err = handler
-            .handle(NodePowerRequest::Shutdown)
+        let err = handle(NodePowerRequest::Shutdown, mock.clone())
             .await
             .expect_err("shutdown should be unsupported on non-Linux");
         assert_eq!(err, ERR_INVALID_COMMAND);
@@ -335,10 +311,8 @@ mod tests {
     #[tokio::test]
     async fn handle_graceful_reboot_returns_initiated_on_success() {
         let mock = Arc::new(MockPowerBackend::default());
-        let mut handler = PowerHandler::new(mock.clone() as Arc<dyn PowerBackend>);
 
-        let resp = handler
-            .handle(NodePowerRequest::GracefulReboot)
+        let resp = handle(NodePowerRequest::GracefulReboot, mock.clone())
             .await
             .expect("graceful reboot should succeed");
         assert_eq!(resp, NodePowerResponse::Initiated);
@@ -349,10 +323,8 @@ mod tests {
     async fn handle_graceful_reboot_returns_fail_on_spawn_error() {
         let mock = Arc::new(MockPowerBackend::default());
         mock.graceful_reboot_fail.store(true, Ordering::SeqCst);
-        let mut handler = PowerHandler::new(mock.clone() as Arc<dyn PowerBackend>);
 
-        let err = handler
-            .handle(NodePowerRequest::GracefulReboot)
+        let err = handle(NodePowerRequest::GracefulReboot, mock.clone())
             .await
             .expect_err("graceful reboot should fail");
         assert_eq!(err, ERR_FAIL);
@@ -361,10 +333,8 @@ mod tests {
     #[tokio::test]
     async fn handle_graceful_shutdown_returns_initiated_on_success() {
         let mock = Arc::new(MockPowerBackend::default());
-        let mut handler = PowerHandler::new(mock.clone() as Arc<dyn PowerBackend>);
 
-        let resp = handler
-            .handle(NodePowerRequest::GracefulShutdown)
+        let resp = handle(NodePowerRequest::GracefulShutdown, mock.clone())
             .await
             .expect("graceful shutdown should succeed");
         assert_eq!(resp, NodePowerResponse::Initiated);
@@ -375,10 +345,8 @@ mod tests {
     async fn handle_graceful_shutdown_returns_fail_on_spawn_error() {
         let mock = Arc::new(MockPowerBackend::default());
         mock.graceful_power_off_fail.store(true, Ordering::SeqCst);
-        let mut handler = PowerHandler::new(mock.clone() as Arc<dyn PowerBackend>);
 
-        let err = handler
-            .handle(NodePowerRequest::GracefulShutdown)
+        let err = handle(NodePowerRequest::GracefulShutdown, mock.clone())
             .await
             .expect_err("graceful shutdown should fail");
         assert_eq!(err, ERR_FAIL);

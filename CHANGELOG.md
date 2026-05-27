@@ -51,15 +51,6 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `shutdown`, `process_list`, `resource_usage`) now delegate through
   the grouped handlers as compatibility adapters.
 
-### Changed
-
-- Simplified `list_files` to return only file names instead of unused size and
-  modified-time data.
-
-### Removed
-
-- Removed the direct `chrono` dependency.
-
 ### Fixed
 
 - Fix `NetplanYaml::merge` bridge handling so `bridges` is no longer dropped
