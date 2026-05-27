@@ -905,11 +905,21 @@ mod tests {
         })
     }
 
+    /// Waits until the mock backend call count reaches `expected`.
+    #[cfg(target_os = "linux")]
+    async fn wait_for_mock_count(count: &std::sync::atomic::AtomicUsize, expected: usize) {
+        tokio::time::timeout(std::time::Duration::from_secs(1), async {
+            while count.load(std::sync::atomic::Ordering::SeqCst) < expected {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("timed out waiting for mock backend call");
+    }
+
     #[cfg(target_os = "linux")]
     #[tokio::test]
     async fn dispatch_reboot_over_live_connection() {
-        use std::sync::atomic::Ordering;
-
         use review_protocol::server::node::NodePowerOutcome;
         use review_protocol::types::node::NodePowerRequest;
 
@@ -923,14 +933,7 @@ mod tests {
             "reboot should be accepted: {result:?}"
         );
 
-        // Give the background reboot task time to call the mock backend.
-        for _ in 0..50 {
-            if mock.reboot_count.load(Ordering::SeqCst) > 0 {
-                break;
-            }
-            tokio::task::yield_now().await;
-        }
-        assert_eq!(mock.reboot_count.load(Ordering::SeqCst), 1);
+        wait_for_mock_count(&mock.reboot_count, 1).await;
 
         drop(server);
         let task_result = task.await.expect("dispatch task should not panic");
@@ -940,8 +943,6 @@ mod tests {
     #[cfg(target_os = "linux")]
     #[tokio::test]
     async fn dispatch_shutdown_over_live_connection() {
-        use std::sync::atomic::Ordering;
-
         use review_protocol::server::node::NodePowerOutcome;
         use review_protocol::types::node::NodePowerRequest;
 
@@ -955,13 +956,7 @@ mod tests {
             "shutdown should be accepted: {result:?}"
         );
 
-        for _ in 0..50 {
-            if mock.power_off_count.load(Ordering::SeqCst) > 0 {
-                break;
-            }
-            tokio::task::yield_now().await;
-        }
-        assert_eq!(mock.power_off_count.load(Ordering::SeqCst), 1);
+        wait_for_mock_count(&mock.power_off_count, 1).await;
 
         drop(server);
         let task_result = task.await.expect("dispatch task should not panic");
@@ -1025,63 +1020,6 @@ mod tests {
             0,
             "immediate shutdown must not invoke the backend on non-Linux"
         );
-
-        drop(server);
-        let _ = task.await.expect("dispatch task should not panic");
-    }
-
-    #[cfg(target_os = "linux")]
-    #[tokio::test]
-    async fn dispatch_node_power_reboot_over_live_connection() {
-        use std::sync::atomic::Ordering;
-
-        use review_protocol::server::node::NodePowerOutcome;
-        use review_protocol::types::node::NodePowerRequest;
-
-        let (inner, server, _endpoint) = setup_test_connection().await;
-        let mock = Arc::new(handlers::power::MockPowerBackend::default());
-        let task = spawn_dispatch_loop_with_mock(inner, mock.clone());
-
-        let resp = server
-            .node_power(NodePowerRequest::Reboot)
-            .await
-            .expect("node_power reboot should succeed");
-        assert!(matches!(resp, NodePowerOutcome::Sent));
-
-        for _ in 0..50 {
-            if mock.reboot_count.load(Ordering::SeqCst) > 0 {
-                break;
-            }
-            tokio::task::yield_now().await;
-        }
-        assert_eq!(mock.reboot_count.load(Ordering::SeqCst), 1);
-
-        drop(server);
-        let _ = task.await.expect("dispatch task should not panic");
-    }
-
-    #[cfg(not(target_os = "linux"))]
-    #[tokio::test]
-    async fn dispatch_node_power_reboot_over_live_connection_non_linux() {
-        use std::sync::atomic::Ordering;
-
-        use review_protocol::server::node::NodePowerOutcome;
-        use review_protocol::types::node::NodePowerRequest;
-
-        let (inner, server, _endpoint) = setup_test_connection().await;
-        let mock = Arc::new(handlers::power::MockPowerBackend::default());
-        let task = spawn_dispatch_loop_with_mock(inner, mock.clone());
-
-        let result = server.node_power(NodePowerRequest::Reboot).await;
-        assert!(
-            matches!(result, Ok(NodePowerOutcome::Sent)),
-            "node_power reboot should be sent: {result:?}"
-        );
-
-        for _ in 0..50 {
-            tokio::task::yield_now().await;
-        }
-        assert_eq!(mock.reboot_count.load(Ordering::SeqCst), 0);
 
         drop(server);
         let _ = task.await.expect("dispatch task should not panic");

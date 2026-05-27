@@ -1,14 +1,12 @@
 //! Power-control request handling.
 //!
-//! Immediate [`NodePowerRequest::Reboot`] and [`NodePowerRequest::Shutdown`]
-//! are fire-and-forget under review-protocol 0.19.0: the dispatch layer does
-//! not send a wire response. The handler runs the destructive system call on a
-//! blocking thread so legacy flat `reboot`/`shutdown` compatibility paths can
-//! still return before the operation runs.
+//! Immediate reboot and shutdown requests are fire-and-forget: the request
+//! handler accepts the command and dispatches the OS-facing operation without
+//! waiting for it to complete. The operation runs on Tokio's blocking pool
+//! because it may call synchronous OS APIs that do not return on success.
 //!
-//! Graceful variants spawn the platform reboot/poweroff command on a blocking
-//! thread and return [`NodePowerResponse::Initiated`] on successful spawn,
-//! `"fail"` otherwise.
+//! Graceful reboot and shutdown requests return an acknowledgement after
+//! successfully starting the platform reboot or power-off command.
 
 use std::process::Command;
 use std::sync::Arc;
@@ -60,8 +58,8 @@ impl PowerBackend for SystemPowerBackend {
     fn reboot(&self) {
         #[cfg(target_os = "linux")]
         {
-            if let Err(e) = nix::sys::reboot::reboot(nix::sys::reboot::RebootMode::RB_AUTOBOOT) {
-                tracing::error!("nix reboot failed: {e}");
+            match nix::sys::reboot::reboot(nix::sys::reboot::RebootMode::RB_AUTOBOOT) {
+                Err(e) => tracing::error!("nix reboot failed: {e}"),
             }
         }
         #[cfg(not(target_os = "linux"))]
@@ -73,8 +71,8 @@ impl PowerBackend for SystemPowerBackend {
     fn power_off(&self) {
         #[cfg(target_os = "linux")]
         {
-            if let Err(e) = nix::sys::reboot::reboot(nix::sys::reboot::RebootMode::RB_POWER_OFF) {
-                tracing::error!("nix poweroff failed: {e}");
+            match nix::sys::reboot::reboot(nix::sys::reboot::RebootMode::RB_POWER_OFF) {
+                Err(e) => tracing::error!("nix poweroff failed: {e}"),
             }
         }
         #[cfg(not(target_os = "linux"))]
@@ -126,10 +124,10 @@ impl PowerBackend for SystemPowerBackend {
 
 /// Handles a [`NodePowerRequest`].
 ///
-/// Immediate variants run the system call on a blocking thread and return
-/// without waiting for it to complete. The return value is not sent on the wire
-/// for grouped `NodePower` requests (review-protocol 0.19.0), but is still used
-/// by legacy flat `reboot`/`shutdown` compatibility paths.
+/// Immediate reboot and shutdown are accepted and dispatched to the backend on
+/// a blocking thread without awaiting completion. Graceful variants run the
+/// platform command on a blocking thread and return [`NodePowerResponse::Initiated`]
+/// after the command is successfully started.
 ///
 /// # Errors
 ///
@@ -141,37 +139,41 @@ pub(crate) async fn handle(
     backend: Arc<dyn PowerBackend>,
 ) -> Result<NodePowerResponse, String> {
     match req {
+        #[cfg(target_os = "linux")]
+        NodePowerRequest::Reboot => Ok(immediate_reboot(backend)),
+        #[cfg(not(target_os = "linux"))]
         NodePowerRequest::Reboot => immediate_reboot(backend),
+        #[cfg(target_os = "linux")]
+        NodePowerRequest::Shutdown => Ok(immediate_shutdown(backend)),
+        #[cfg(not(target_os = "linux"))]
         NodePowerRequest::Shutdown => immediate_shutdown(backend),
         NodePowerRequest::GracefulReboot => graceful_reboot(backend).await,
         NodePowerRequest::GracefulShutdown => graceful_power_off(backend).await,
     }
 }
 
-fn immediate_reboot(backend: Arc<dyn PowerBackend>) -> Result<NodePowerResponse, String> {
-    #[cfg(target_os = "linux")]
-    {
-        tokio::task::spawn_blocking(move || backend.reboot());
-        Ok(NodePowerResponse::Initiated)
-    }
-    #[cfg(not(target_os = "linux"))]
-    {
-        drop(backend);
-        Err(ERR_INVALID_COMMAND.to_string())
-    }
+#[cfg(target_os = "linux")]
+fn immediate_reboot(backend: Arc<dyn PowerBackend>) -> NodePowerResponse {
+    tokio::task::spawn_blocking(move || backend.reboot());
+    NodePowerResponse::Initiated
 }
 
+#[cfg(not(target_os = "linux"))]
+fn immediate_reboot(backend: Arc<dyn PowerBackend>) -> Result<NodePowerResponse, String> {
+    drop(backend);
+    Err(ERR_INVALID_COMMAND.to_string())
+}
+
+#[cfg(target_os = "linux")]
+fn immediate_shutdown(backend: Arc<dyn PowerBackend>) -> NodePowerResponse {
+    tokio::task::spawn_blocking(move || backend.power_off());
+    NodePowerResponse::Initiated
+}
+
+#[cfg(not(target_os = "linux"))]
 fn immediate_shutdown(backend: Arc<dyn PowerBackend>) -> Result<NodePowerResponse, String> {
-    #[cfg(target_os = "linux")]
-    {
-        tokio::task::spawn_blocking(move || backend.power_off());
-        Ok(NodePowerResponse::Initiated)
-    }
-    #[cfg(not(target_os = "linux"))]
-    {
-        drop(backend);
-        Err(ERR_INVALID_COMMAND.to_string())
-    }
+    drop(backend);
+    Err(ERR_INVALID_COMMAND.to_string())
 }
 
 async fn graceful_reboot(backend: Arc<dyn PowerBackend>) -> Result<NodePowerResponse, String> {
