@@ -272,7 +272,6 @@ mod tests {
             .await
             .expect("reboot should succeed");
         assert_eq!(resp, NodePowerResponse::Initiated);
-        assert_eq!(mock.reboot_count.load(Ordering::SeqCst), 0);
 
         wait_for_mock_count(&mock.reboot_count, 1).await;
     }

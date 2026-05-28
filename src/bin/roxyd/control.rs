@@ -905,6 +905,62 @@ mod tests {
         })
     }
 
+    /// Legacy flat request codes from review-protocol 0.19.0 (`client::RequestCode`).
+    #[cfg(target_os = "linux")]
+    const FLAT_REQUEST_REBOOT: u32 = 4;
+    #[cfg(target_os = "linux")]
+    const FLAT_REQUEST_SHUTDOWN: u32 = 21;
+
+    /// Sends a legacy flat request (review-protocol 0.19.0 wire framing).
+    #[cfg(target_os = "linux")]
+    async fn send_legacy_flat_request(
+        conn: &review_protocol::server::Connection,
+        request_code: u32,
+    ) -> anyhow::Result<()> {
+        let (mut send, mut recv) = conn.open_bi().await?;
+        let resp: Result<(), String> =
+            review_protocol::unary_request(&mut send, &mut recv, request_code, ())
+                .await
+                .map_err(|e| anyhow::anyhow!("flat request transport failed: {e}"))?;
+        resp.map_err(|e| anyhow::anyhow!(e))
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn dispatch_flat_reboot_request_code_over_live_connection() {
+        let (inner, server, _endpoint) = setup_test_connection().await;
+        let mock = Arc::new(handlers::power::MockPowerBackend::default());
+        let task = spawn_dispatch_loop_with_mock(inner, mock.clone());
+
+        send_legacy_flat_request(&server, FLAT_REQUEST_REBOOT)
+            .await
+            .expect("flat reboot should return legacy ()");
+
+        handlers::power::wait_for_mock_count(&mock.reboot_count, 1).await;
+
+        drop(server);
+        let task_result = task.await.expect("dispatch task should not panic");
+        assert!(task_result.is_ok());
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn dispatch_flat_shutdown_request_code_over_live_connection() {
+        let (inner, server, _endpoint) = setup_test_connection().await;
+        let mock = Arc::new(handlers::power::MockPowerBackend::default());
+        let task = spawn_dispatch_loop_with_mock(inner, mock.clone());
+
+        send_legacy_flat_request(&server, FLAT_REQUEST_SHUTDOWN)
+            .await
+            .expect("flat shutdown should return legacy ()");
+
+        handlers::power::wait_for_mock_count(&mock.power_off_count, 1).await;
+
+        drop(server);
+        let task_result = task.await.expect("dispatch task should not panic");
+        assert!(task_result.is_ok());
+    }
+
     #[cfg(target_os = "linux")]
     #[tokio::test]
     async fn dispatch_reboot_over_live_connection() {
