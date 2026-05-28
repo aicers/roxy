@@ -192,6 +192,8 @@ async fn graceful_power_off(backend: Arc<dyn PowerBackend>) -> Result<NodePowerR
 
 #[cfg(test)]
 pub(crate) use mock::MockPowerBackend;
+#[cfg(all(test, target_os = "linux"))]
+pub(crate) use mock::wait_for_mock_count;
 
 #[cfg(test)]
 pub(crate) mod mock {
@@ -238,6 +240,18 @@ pub(crate) mod mock {
             }
         }
     }
+
+    /// Waits until the mock backend call count reaches `expected`.
+    #[cfg(target_os = "linux")]
+    pub(crate) async fn wait_for_mock_count(count: &AtomicUsize, expected: usize) {
+        tokio::time::timeout(std::time::Duration::from_secs(1), async {
+            while count.load(Ordering::SeqCst) < expected {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("timed out waiting for mock backend call");
+    }
 }
 
 #[cfg(test)]
@@ -245,6 +259,8 @@ mod tests {
     use std::sync::atomic::Ordering;
 
     use super::mock::MockPowerBackend;
+    #[cfg(target_os = "linux")]
+    use super::mock::wait_for_mock_count;
     use super::*;
 
     #[cfg(target_os = "linux")]
@@ -258,13 +274,7 @@ mod tests {
         assert_eq!(resp, NodePowerResponse::Initiated);
         assert_eq!(mock.reboot_count.load(Ordering::SeqCst), 0);
 
-        for _ in 0..50 {
-            if mock.reboot_count.load(Ordering::SeqCst) > 0 {
-                break;
-            }
-            tokio::task::yield_now().await;
-        }
-        assert_eq!(mock.reboot_count.load(Ordering::SeqCst), 1);
+        wait_for_mock_count(&mock.reboot_count, 1).await;
     }
 
     #[cfg(target_os = "linux")]
@@ -277,13 +287,7 @@ mod tests {
             .expect("shutdown should succeed");
         assert_eq!(resp, NodePowerResponse::Initiated);
 
-        for _ in 0..50 {
-            if mock.power_off_count.load(Ordering::SeqCst) > 0 {
-                break;
-            }
-            tokio::task::yield_now().await;
-        }
-        assert_eq!(mock.power_off_count.load(Ordering::SeqCst), 1);
+        wait_for_mock_count(&mock.power_off_count, 1).await;
     }
 
     #[cfg(not(target_os = "linux"))]

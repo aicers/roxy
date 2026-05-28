@@ -905,18 +905,6 @@ mod tests {
         })
     }
 
-    /// Waits until the mock backend call count reaches `expected`.
-    #[cfg(target_os = "linux")]
-    async fn wait_for_mock_count(count: &std::sync::atomic::AtomicUsize, expected: usize) {
-        tokio::time::timeout(std::time::Duration::from_secs(1), async {
-            while count.load(std::sync::atomic::Ordering::SeqCst) < expected {
-                tokio::task::yield_now().await;
-            }
-        })
-        .await
-        .expect("timed out waiting for mock backend call");
-    }
-
     #[cfg(target_os = "linux")]
     #[tokio::test]
     async fn dispatch_reboot_over_live_connection() {
@@ -933,7 +921,7 @@ mod tests {
             "reboot should be accepted: {result:?}"
         );
 
-        wait_for_mock_count(&mock.reboot_count, 1).await;
+        handlers::power::wait_for_mock_count(&mock.reboot_count, 1).await;
 
         drop(server);
         let task_result = task.await.expect("dispatch task should not panic");
@@ -956,7 +944,7 @@ mod tests {
             "shutdown should be accepted: {result:?}"
         );
 
-        wait_for_mock_count(&mock.power_off_count, 1).await;
+        handlers::power::wait_for_mock_count(&mock.power_off_count, 1).await;
 
         drop(server);
         let task_result = task.await.expect("dispatch task should not panic");
