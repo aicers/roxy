@@ -882,6 +882,31 @@ mod tests {
 
     // -- Tests: RequestCode dispatch over live connection --------------
 
+    fn spawn_dispatch_loop_with_handler<H, F>(
+        inner: review_protocol::client::Connection,
+        mock: Arc<handlers::power::MockPowerBackend>,
+        make_handler: F,
+    ) -> tokio::task::JoinHandle<Result<(), anyhow::Error>>
+    where
+        F: Fn(Arc<dyn PowerBackend>) -> H + Send + 'static,
+        H: review_protocol::request::Handler + 'static,
+    {
+        let backend: Arc<dyn PowerBackend> = mock;
+        tokio::spawn(async move {
+            loop {
+                let Ok((mut send, mut recv)) = inner.accept_bi().await else {
+                    return Ok::<(), anyhow::Error>(());
+                };
+                let mut handler = make_handler(backend.clone());
+                if let Err(e) =
+                    review_protocol::request::handle(&mut handler, &mut send, &mut recv).await
+                {
+                    tracing::error!("Request handling failed: {e}");
+                }
+            }
+        })
+    }
+
     /// Spawns a dispatch loop that uses the provided mock power backend for every
     /// stream accepted on this connection. Returns the task handle so the
     /// caller can drive shutdown.
@@ -889,19 +914,34 @@ mod tests {
         inner: review_protocol::client::Connection,
         mock: Arc<handlers::power::MockPowerBackend>,
     ) -> tokio::task::JoinHandle<Result<(), anyhow::Error>> {
-        let backend: Arc<dyn PowerBackend> = mock;
-        tokio::spawn(async move {
-            loop {
-                let Ok((mut send, mut recv)) = inner.accept_bi().await else {
-                    return Ok::<(), anyhow::Error>(());
-                };
-                let mut handler = super::RequestHandler::with_power_backend(backend.clone());
-                if let Err(e) =
-                    review_protocol::request::handle(&mut handler, &mut send, &mut recv).await
-                {
-                    tracing::error!("Request handling failed: {e}");
-                }
-            }
+        spawn_dispatch_loop_with_handler(inner, mock, super::RequestHandler::with_power_backend)
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    struct NotifyingPowerHandler {
+        inner: super::RequestHandler,
+        processed: Arc<tokio::sync::Notify>,
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    #[async_trait::async_trait]
+    impl review_protocol::request::Handler for NotifyingPowerHandler {
+        async fn node_power(&mut self, req: NodePowerRequest) -> Result<NodePowerResponse, String> {
+            let result = review_protocol::request::Handler::node_power(&mut self.inner, req).await;
+            self.processed.notify_one();
+            result
+        }
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    fn spawn_node_power_dispatch_loop_with_notify(
+        inner: review_protocol::client::Connection,
+        mock: Arc<handlers::power::MockPowerBackend>,
+        processed: Arc<tokio::sync::Notify>,
+    ) -> tokio::task::JoinHandle<Result<(), anyhow::Error>> {
+        spawn_dispatch_loop_with_handler(inner, mock, move |backend| NotifyingPowerHandler {
+            inner: super::RequestHandler::with_power_backend(backend),
+            processed: processed.clone(),
         })
     }
 
@@ -1017,7 +1057,9 @@ mod tests {
 
         let (inner, server, _endpoint) = setup_test_connection().await;
         let mock = Arc::new(handlers::power::MockPowerBackend::default());
-        let task = spawn_dispatch_loop_with_mock(inner, mock.clone());
+        let processed = Arc::new(tokio::sync::Notify::new());
+        let task =
+            spawn_node_power_dispatch_loop_with_notify(inner, mock.clone(), processed.clone());
 
         let result = server.node_power(NodePowerRequest::Reboot).await;
         assert!(
@@ -1025,9 +1067,9 @@ mod tests {
             "request should be sent: {result:?}"
         );
 
-        for _ in 0..50 {
-            tokio::task::yield_now().await;
-        }
+        tokio::time::timeout(Duration::from_secs(1), processed.notified())
+            .await
+            .expect("node_power request should be processed");
         assert_eq!(
             mock.reboot_count.load(Ordering::SeqCst),
             0,
@@ -1048,7 +1090,9 @@ mod tests {
 
         let (inner, server, _endpoint) = setup_test_connection().await;
         let mock = Arc::new(handlers::power::MockPowerBackend::default());
-        let task = spawn_dispatch_loop_with_mock(inner, mock.clone());
+        let processed = Arc::new(tokio::sync::Notify::new());
+        let task =
+            spawn_node_power_dispatch_loop_with_notify(inner, mock.clone(), processed.clone());
 
         let result = server.node_power(NodePowerRequest::Shutdown).await;
         assert!(
@@ -1056,9 +1100,9 @@ mod tests {
             "request should be sent: {result:?}"
         );
 
-        for _ in 0..50 {
-            tokio::task::yield_now().await;
-        }
+        tokio::time::timeout(Duration::from_secs(1), processed.notified())
+            .await
+            .expect("node_power request should be processed");
         assert_eq!(
             mock.power_off_count.load(Ordering::SeqCst),
             0,
