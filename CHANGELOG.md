@@ -11,6 +11,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Add explicit shutdown path for `roxyd` that handles OS signals
   (SIGINT/SIGTERM), cancels any in-progress connection attempt or
   accept/reconnect loop cleanly, and logs shutdown lifecycle events.
+- `roxyd` now handles node power-control requests from a Manager (immediate and
+  graceful reboot/shutdown), replacing the previous unimplemented scaffolding.
+  Immediate grouped `node_power` reboot and shutdown requests do not return a
+  protocol response; on Linux, they dispatch the OS-facing operation in the
+  background. Graceful reboot and shutdown attempt to spawn the
+  platform-specific command and return `Initiated` on success or `"fail"` on
+  start failure. Legacy flat `reboot` and `shutdown` requests delegate to the
+  same immediate power path while keeping the legacy `()` response path.
+  Immediate reboot and shutdown are not supported on non-Linux platforms.
 
 ### Changed
 
