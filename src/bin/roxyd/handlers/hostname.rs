@@ -39,7 +39,7 @@ pub(crate) async fn handle(
             let hostname = tokio::task::spawn_blocking(|| {
                 hostname::get()
                     .ok()
-                    .and_then(|hostname| hostname.into_string().ok())
+                    .map(|hostname| hostname.to_string_lossy().into_owned())
                     .unwrap_or_default()
             })
             .await
@@ -97,7 +97,7 @@ mod tests {
     async fn get_returns_current_hostname() {
         let expected = hostname::get()
             .ok()
-            .and_then(|hostname| hostname.into_string().ok())
+            .map(|hostname| hostname.to_string_lossy().into_owned())
             .unwrap_or_default();
 
         let response = handle(
