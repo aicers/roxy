@@ -27,6 +27,9 @@ impl HostnameWriter for SystemHostnameWriter {
 
 /// Handles a node hostname management request.
 ///
+/// `Get` always returns `NodeHostnameResponse::Get { hostname }` rather than a
+/// read-error path (an empty string when the hostname cannot be read).
+///
 /// # Errors
 ///
 /// Returns `"fail"` if setting the hostname fails.
