@@ -1,10 +1,22 @@
 //! Hostname request handling.
 
+use std::ffi::OsString;
 use std::sync::Arc;
 
 use review_protocol::types::node::{NodeHostnameRequest, NodeHostnameResponse};
 
 const ERR_FAIL: &str = "fail";
+
+fn read_hostname_or_default() -> String {
+    hostname_or_default(hostname::get().ok())
+}
+
+fn hostname_or_default(hostname: Option<OsString>) -> String {
+    match hostname {
+        Some(hostname) => hostname.to_string_lossy().into_owned(),
+        None => String::new(),
+    }
+}
 
 /// Performs the system hostname write operation.
 pub(crate) trait HostnameWriter: Send + Sync {
@@ -39,14 +51,9 @@ pub(crate) async fn handle(
 ) -> Result<NodeHostnameResponse, String> {
     match req {
         NodeHostnameRequest::Get => {
-            let hostname = tokio::task::spawn_blocking(|| {
-                hostname::get()
-                    .ok()
-                    .map(|hostname| hostname.to_string_lossy().into_owned())
-                    .unwrap_or_default()
-            })
-            .await
-            .unwrap_or_default();
+            let hostname = tokio::task::spawn_blocking(read_hostname_or_default)
+                .await
+                .unwrap_or_default();
             Ok(NodeHostnameResponse::Get { hostname })
         }
         NodeHostnameRequest::Set { hostname } => {
@@ -96,12 +103,23 @@ mod tests {
     use super::mock::MockHostnameWriter;
     use super::*;
 
+    #[test]
+    fn hostname_or_default_returns_empty_string_on_none() {
+        assert_eq!(hostname_or_default(None), "");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn hostname_or_default_converts_non_utf8_with_lossy_replacement() {
+        use std::os::unix::ffi::OsStringExt;
+
+        let non_utf8 = OsString::from_vec(vec![0xff, 0xfe]);
+        assert_eq!(hostname_or_default(Some(non_utf8)), "\u{fffd}\u{fffd}");
+    }
+
     #[tokio::test]
     async fn get_returns_current_hostname() {
-        let expected = hostname::get()
-            .ok()
-            .map(|hostname| hostname.to_string_lossy().into_owned())
-            .unwrap_or_default();
+        let expected = read_hostname_or_default();
 
         let response = handle(
             NodeHostnameRequest::Get,
