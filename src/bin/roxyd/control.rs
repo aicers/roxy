@@ -18,7 +18,6 @@ use review_protocol::types::node::{
 };
 use tokio::sync::watch;
 
-use super::handlers::hostname::{HostnameWriter, SystemHostnameWriter};
 use super::handlers::power::{PowerBackend, SystemPowerBackend};
 use super::{handlers, settings::Settings};
 
@@ -242,14 +241,12 @@ async fn dispatch(send: &mut quinn::SendStream, recv: &mut quinn::RecvStream) ->
 /// `resource_usage`) are temporary protocol-compatibility adapters that
 /// route through the grouped handlers.
 struct RequestHandler {
-    hostname_writer: Arc<dyn HostnameWriter>,
     power_backend: Arc<dyn PowerBackend>,
 }
 
 impl Default for RequestHandler {
     fn default() -> Self {
         Self {
-            hostname_writer: Arc::new(SystemHostnameWriter),
             power_backend: Arc::new(SystemPowerBackend),
         }
     }
@@ -259,15 +256,7 @@ impl Default for RequestHandler {
 impl RequestHandler {
     fn with_power_backend(backend: Arc<dyn PowerBackend>) -> Self {
         Self {
-            hostname_writer: Arc::new(SystemHostnameWriter),
             power_backend: backend,
-        }
-    }
-
-    fn with_hostname_writer(writer: Arc<dyn HostnameWriter>) -> Self {
-        Self {
-            hostname_writer: writer,
-            power_backend: Arc::new(SystemPowerBackend),
         }
     }
 }
@@ -289,7 +278,7 @@ impl review_protocol::request::Handler for RequestHandler {
         req: NodeHostnameRequest,
     ) -> Result<NodeHostnameResponse, String> {
         tracing::info!(handler_group = "node_hostname", request = %req.service_id(), "Dispatching request");
-        handlers::hostname::handle(req, self.hostname_writer.clone()).await
+        handlers::hostname::handle(req).await
     }
 
     async fn node_time_sync(
@@ -501,8 +490,7 @@ mod tests {
 
     #[tokio::test]
     async fn node_hostname_routes_get_to_hostname_handler() {
-        let writer = Arc::new(handlers::hostname::mock::MockHostnameWriter::default());
-        let mut handler = RequestHandler::with_hostname_writer(writer);
+        let mut handler = RequestHandler::default();
 
         let response = review_protocol::request::Handler::node_hostname(
             &mut handler,
@@ -517,7 +505,8 @@ mod tests {
     #[tokio::test]
     async fn node_hostname_routes_set_to_hostname_handler() {
         let writer = Arc::new(handlers::hostname::mock::MockHostnameWriter::default());
-        let mut handler = RequestHandler::with_hostname_writer(writer.clone());
+        let _guard = handlers::hostname::test_support::override_writer(writer.clone());
+        let mut handler = RequestHandler::default();
 
         let response = review_protocol::request::Handler::node_hostname(
             &mut handler,
@@ -535,7 +524,8 @@ mod tests {
     #[tokio::test]
     async fn node_hostname_propagates_set_failure() {
         let writer = Arc::new(handlers::hostname::mock::MockHostnameWriter::failing());
-        let mut handler = RequestHandler::with_hostname_writer(writer);
+        let _guard = handlers::hostname::test_support::override_writer(writer);
+        let mut handler = RequestHandler::default();
 
         let error = review_protocol::request::Handler::node_hostname(
             &mut handler,

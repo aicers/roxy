@@ -37,6 +37,14 @@ impl HostnameWriter for SystemHostnameWriter {
     }
 }
 
+fn writer_for_call() -> Arc<dyn HostnameWriter> {
+    #[cfg(test)]
+    if let Some(writer) = test_support::current_writer() {
+        return writer;
+    }
+    Arc::new(SystemHostnameWriter)
+}
+
 /// Handles a node hostname management request.
 ///
 /// `Get` always returns `NodeHostnameResponse::Get { hostname }` rather than a
@@ -45,10 +53,8 @@ impl HostnameWriter for SystemHostnameWriter {
 /// # Errors
 ///
 /// Returns `"fail"` if setting the hostname fails.
-pub(crate) async fn handle(
-    req: NodeHostnameRequest,
-    writer: Arc<dyn HostnameWriter>,
-) -> Result<NodeHostnameResponse, String> {
+pub(crate) async fn handle(req: NodeHostnameRequest) -> Result<NodeHostnameResponse, String> {
+    let writer = writer_for_call();
     match req {
         NodeHostnameRequest::Get => {
             let hostname = tokio::task::spawn_blocking(read_hostname_or_default)
@@ -62,6 +68,38 @@ pub(crate) async fn handle(
                 Ok(Err(())) | Err(_) => Err(ERR_FAIL.to_string()),
             }
         }
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod test_support {
+    use std::sync::{Arc, Mutex, OnceLock};
+
+    use super::HostnameWriter;
+
+    fn slot() -> &'static Mutex<Option<Arc<dyn HostnameWriter>>> {
+        static SLOT: OnceLock<Mutex<Option<Arc<dyn HostnameWriter>>>> = OnceLock::new();
+        SLOT.get_or_init(|| Mutex::new(None))
+    }
+
+    pub(crate) fn current_writer() -> Option<Arc<dyn HostnameWriter>> {
+        slot()
+            .lock()
+            .expect("hostname writer override lock")
+            .clone()
+    }
+
+    pub(crate) struct WriterOverrideGuard;
+
+    impl Drop for WriterOverrideGuard {
+        fn drop(&mut self) {
+            *slot().lock().expect("hostname writer override lock") = None;
+        }
+    }
+
+    pub(crate) fn override_writer(writer: Arc<dyn HostnameWriter>) -> WriterOverrideGuard {
+        *slot().lock().expect("hostname writer override lock") = Some(writer);
+        WriterOverrideGuard
     }
 }
 
@@ -121,12 +159,9 @@ mod tests {
     async fn get_returns_current_hostname() {
         let expected = read_hostname_or_default();
 
-        let response = handle(
-            NodeHostnameRequest::Get,
-            Arc::new(MockHostnameWriter::default()),
-        )
-        .await
-        .expect("get should succeed");
+        let response = handle(NodeHostnameRequest::Get)
+            .await
+            .expect("get should succeed");
 
         assert_eq!(response, NodeHostnameResponse::Get { hostname: expected });
     }
@@ -134,13 +169,11 @@ mod tests {
     #[tokio::test]
     async fn set_returns_done_on_success() {
         let writer = Arc::new(MockHostnameWriter::default());
+        let _guard = test_support::override_writer(writer.clone());
 
-        let response = handle(
-            NodeHostnameRequest::Set {
-                hostname: "roxy-node".to_string(),
-            },
-            writer.clone(),
-        )
+        let response = handle(NodeHostnameRequest::Set {
+            hostname: "roxy-node".to_string(),
+        })
         .await
         .expect("set should succeed");
 
@@ -151,13 +184,11 @@ mod tests {
     #[tokio::test]
     async fn set_returns_fail_on_write_error() {
         let writer = Arc::new(MockHostnameWriter::failing());
+        let _guard = test_support::override_writer(writer);
 
-        let error = handle(
-            NodeHostnameRequest::Set {
-                hostname: "roxy-node".to_string(),
-            },
-            writer,
-        )
+        let error = handle(NodeHostnameRequest::Set {
+            hostname: "roxy-node".to_string(),
+        })
         .await
         .expect_err("set should fail");
 
