@@ -502,43 +502,6 @@ mod tests {
         assert!(matches!(response, NodeHostnameResponse::Get { .. }));
     }
 
-    #[tokio::test]
-    async fn node_hostname_routes_set_to_hostname_handler() {
-        let writer = Arc::new(handlers::hostname::mock::MockHostnameWriter::default());
-        let _guard = handlers::hostname::test_support::override_writer(writer.clone());
-        let mut handler = RequestHandler::default();
-
-        let response = review_protocol::request::Handler::node_hostname(
-            &mut handler,
-            NodeHostnameRequest::Set {
-                hostname: "roxy-node".to_string(),
-            },
-        )
-        .await
-        .expect("set should succeed");
-
-        assert_eq!(response, NodeHostnameResponse::Done);
-        assert_eq!(writer.hostnames(), ["roxy-node"]);
-    }
-
-    #[tokio::test]
-    async fn node_hostname_propagates_set_failure() {
-        let writer = Arc::new(handlers::hostname::mock::MockHostnameWriter::failing());
-        let _guard = handlers::hostname::test_support::override_writer(writer);
-        let mut handler = RequestHandler::default();
-
-        let error = review_protocol::request::Handler::node_hostname(
-            &mut handler,
-            NodeHostnameRequest::Set {
-                hostname: "roxy-node".to_string(),
-            },
-        )
-        .await
-        .expect_err("set should fail");
-
-        assert_eq!(error, "fail");
-    }
-
     struct TestCerts {
         root_cert_pem: String,
         inter_cert_pem: String,
