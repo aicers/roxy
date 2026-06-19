@@ -11,7 +11,7 @@ fn read_hostname() -> String {
 }
 
 /// Performs the system hostname write operation.
-pub(crate) trait HostnameWriter: Send + Sync {
+trait HostnameWriter: Send + Sync {
     /// Sets the system hostname.
     ///
     /// # Errors
@@ -21,7 +21,7 @@ pub(crate) trait HostnameWriter: Send + Sync {
 }
 
 /// Production hostname writer.
-pub(crate) struct SystemHostnameWriter;
+struct SystemHostnameWriter;
 
 impl HostnameWriter for SystemHostnameWriter {
     fn set(&self, hostname: String) -> Result<(), ()> {
@@ -41,7 +41,7 @@ pub(crate) async fn handle(req: NodeHostnameRequest) -> Result<NodeHostnameRespo
     handle_with_writer(req, Arc::new(SystemHostnameWriter)).await
 }
 
-pub(crate) async fn handle_with_writer(
+async fn handle_with_writer(
     req: NodeHostnameRequest,
     writer: Arc<dyn HostnameWriter>,
 ) -> Result<NodeHostnameResponse, String> {
