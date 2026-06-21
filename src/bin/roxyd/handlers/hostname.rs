@@ -100,6 +100,15 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    async fn get_returns_hostname_response() {
+        let response = handle(NodeHostnameRequest::Get)
+            .await
+            .expect("get should succeed");
+
+        assert!(matches!(response, NodeHostnameResponse::Get { .. }));
+    }
+
+    #[tokio::test]
     async fn set_returns_done_on_success() {
         let writer = Arc::new(MockHostnameWriter::default());
 
