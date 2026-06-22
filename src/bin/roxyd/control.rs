@@ -488,6 +488,20 @@ mod tests {
     const TEST_PROTOCOL_VERSION: &str = "0.47.0";
     const TEST_BIND_ADDR: &str = "127.0.0.1:0";
 
+    #[tokio::test]
+    async fn node_hostname_routes_get_to_hostname_handler() {
+        let mut handler = RequestHandler::default();
+
+        let response = review_protocol::request::Handler::node_hostname(
+            &mut handler,
+            NodeHostnameRequest::Get,
+        )
+        .await
+        .expect("get should succeed");
+
+        assert!(matches!(response, NodeHostnameResponse::Get { .. }));
+    }
+
     struct TestCerts {
         root_cert_pem: String,
         inter_cert_pem: String,
