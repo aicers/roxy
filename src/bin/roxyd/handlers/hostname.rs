@@ -105,7 +105,7 @@ mod tests {
             .await
             .expect("get should succeed");
 
-        assert!(matches!(response, NodeHostnameResponse::Get { .. }));
+        std::assert_matches!(response, NodeHostnameResponse::Get { .. });
     }
 
     #[tokio::test]
