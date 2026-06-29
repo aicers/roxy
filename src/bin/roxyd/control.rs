@@ -1078,11 +1078,7 @@ mod tests {
             spawn_node_power_dispatch_loop_with_notify(inner, mock.clone(), processed.clone());
 
         let result = server.node_power(NodePowerRequest::Reboot).await;
-        std::assert_matches!(
-            result,
-            Ok(NodePowerOutcome::Sent),
-            "request should be sent"
-        );
+        std::assert_matches!(result, Ok(NodePowerOutcome::Sent), "request should be sent");
 
         tokio::time::timeout(Duration::from_secs(1), processed.notified())
             .await
@@ -1112,11 +1108,7 @@ mod tests {
             spawn_node_power_dispatch_loop_with_notify(inner, mock.clone(), processed.clone());
 
         let result = server.node_power(NodePowerRequest::Shutdown).await;
-        std::assert_matches!(
-            result,
-            Ok(NodePowerOutcome::Sent),
-            "request should be sent"
-        );
+        std::assert_matches!(result, Ok(NodePowerOutcome::Sent), "request should be sent");
 
         tokio::time::timeout(Duration::from_secs(1), processed.notified())
             .await
