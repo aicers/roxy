@@ -99,13 +99,44 @@ Roxy is a root proxy that executes a system command requiring the root privilege
 
 `roxyd` is a new implementation path that coexists with the legacy `roxy`
 binary. It is designed to connect to the Manager via QUIC with mTLS
-authentication.
+authentication, accept review-protocol requests from the Manager, and dispatch
+those requests to grouped node handlers.
 
-**Important notes:**
+`roxyd` currently initializes configuration and tracing, establishes the
+Manager connection, handles graceful shutdown, and automatically reconnects
+after the Manager connection closes. It assumes it is started with the
+privileges needed for host-management operations.
 
-- This is currently a skeleton implementation with no protocol handlers active.
-- Existing legacy code **must not** be removed while legacy mode is still in use.
-- Current limitations: skeleton only; no review-protocol request handling yet.
+### Active handlers
+
+- `node_hostname` reads the current hostname and sets a new hostname.
+- `node_power` initiates reboot and shutdown requests. Immediate reboot and
+  shutdown are Linux-only; graceful reboot and shutdown spawn the platform
+  reboot or power-off command.
+
+### Routed but not implemented
+
+The dispatcher accepts the following grouped node request families, but their
+handler modules still contain implementation scaffolding only:
+
+- `node_service`
+- `node_time_sync`
+- `node_logging`
+- `node_remote_access`
+- `node_observation`
+- `node_network_interface`
+- `node_version`
+
+Legacy flat `reboot`, `shutdown`, `process_list`, and `resource_usage`
+callbacks are compatibility adapters. `reboot` and `shutdown` delegate to
+`node_power`; `process_list` and `resource_usage` delegate to
+`node_observation`, which is still unimplemented.
+
+Other legacy flat protocol methods, including DNS control, forwarding, config
+reload/update, TI reload, list updates, traffic filter updates, and
+semi-supervised model updates, remain unsupported by `roxyd`.
+
+Existing legacy `roxy` code must remain while legacy mode is still in use.
 
 ### Running roxyd
 
