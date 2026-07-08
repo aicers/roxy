@@ -96,6 +96,8 @@ mod mock {
 
 #[cfg(test)]
 mod tests {
+    use std::assert_matches;
+
     use super::mock::MockHostnameWriter;
     use super::*;
 
@@ -105,7 +107,7 @@ mod tests {
             .await
             .expect("get should succeed");
 
-        assert!(matches!(response, NodeHostnameResponse::Get { .. }));
+        assert_matches!(response, NodeHostnameResponse::Get { .. });
     }
 
     #[tokio::test]

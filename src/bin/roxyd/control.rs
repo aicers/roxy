@@ -476,7 +476,7 @@ impl review_protocol::request::Handler for RequestHandler {
 
 #[cfg(test)]
 mod tests {
-    use std::{fs, net::SocketAddr, sync::Arc};
+    use std::{assert_matches, fs, net::SocketAddr, sync::Arc};
 
     use rcgen::{BasicConstraints, CertificateParams, DnType, IsCa, Issuer, KeyPair};
     use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer};
@@ -499,7 +499,7 @@ mod tests {
         .await
         .expect("get should succeed");
 
-        assert!(matches!(response, NodeHostnameResponse::Get { .. }));
+        assert_matches!(response, NodeHostnameResponse::Get { .. });
     }
 
     struct TestCerts {
@@ -1026,9 +1026,10 @@ mod tests {
         let task = spawn_dispatch_loop_with_mock(inner, mock.clone());
 
         let result = server.node_power(NodePowerRequest::Reboot).await;
-        assert!(
-            matches!(result, Ok(NodePowerOutcome::Sent)),
-            "reboot should be accepted: {result:?}"
+        assert_matches!(
+            result,
+            Ok(NodePowerOutcome::Sent),
+            "reboot should be accepted"
         );
 
         handlers::power::wait_for_mock_count(&mock.reboot_count, 1).await;
@@ -1049,9 +1050,10 @@ mod tests {
         let task = spawn_dispatch_loop_with_mock(inner, mock.clone());
 
         let result = server.node_power(NodePowerRequest::Shutdown).await;
-        assert!(
-            matches!(result, Ok(NodePowerOutcome::Sent)),
-            "shutdown should be accepted: {result:?}"
+        assert_matches!(
+            result,
+            Ok(NodePowerOutcome::Sent),
+            "shutdown should be accepted"
         );
 
         handlers::power::wait_for_mock_count(&mock.power_off_count, 1).await;
@@ -1076,10 +1078,7 @@ mod tests {
             spawn_node_power_dispatch_loop_with_notify(inner, mock.clone(), processed.clone());
 
         let result = server.node_power(NodePowerRequest::Reboot).await;
-        assert!(
-            matches!(result, Ok(NodePowerOutcome::Sent)),
-            "request should be sent: {result:?}"
-        );
+        assert_matches!(result, Ok(NodePowerOutcome::Sent), "request should be sent");
 
         tokio::time::timeout(Duration::from_secs(1), processed.notified())
             .await
@@ -1109,10 +1108,7 @@ mod tests {
             spawn_node_power_dispatch_loop_with_notify(inner, mock.clone(), processed.clone());
 
         let result = server.node_power(NodePowerRequest::Shutdown).await;
-        assert!(
-            matches!(result, Ok(NodePowerOutcome::Sent)),
-            "request should be sent: {result:?}"
-        );
+        assert_matches!(result, Ok(NodePowerOutcome::Sent), "request should be sent");
 
         tokio::time::timeout(Duration::from_secs(1), processed.notified())
             .await
@@ -1142,10 +1138,10 @@ mod tests {
             .node_power(NodePowerRequest::GracefulReboot)
             .await
             .expect("graceful reboot should succeed");
-        assert!(matches!(
+        assert_matches!(
             resp,
             NodePowerOutcome::Response(NodePowerResponse::Initiated)
-        ));
+        );
         assert_eq!(mock.graceful_reboot_count.load(Ordering::SeqCst), 1);
         // Graceful path must not trigger immediate reboot.
         assert_eq!(mock.reboot_count.load(Ordering::SeqCst), 0);
@@ -1169,10 +1165,10 @@ mod tests {
             .node_power(NodePowerRequest::GracefulShutdown)
             .await
             .expect("graceful shutdown should succeed");
-        assert!(matches!(
+        assert_matches!(
             resp,
             NodePowerOutcome::Response(NodePowerResponse::Initiated)
-        ));
+        );
         assert_eq!(mock.graceful_power_off_count.load(Ordering::SeqCst), 1);
 
         drop(server);
