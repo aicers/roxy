@@ -117,7 +117,9 @@ privileges needed for host-management operations.
 ### Routed but not implemented
 
 The dispatcher accepts the following grouped node request families, but their
-handler modules still contain implementation scaffolding only:
+handler modules still contain implementation scaffolding only. During
+development, requests routed to these handlers may panic instead of returning a
+graceful unsupported or error response.
 
 - `node_service`
 - `node_time_sync`

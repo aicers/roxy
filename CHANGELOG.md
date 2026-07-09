@@ -29,9 +29,6 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - Simplified `list_files` to return only file names instead of unused size and
   modified-time data.
-- Refreshed the `roxyd` README to describe the migrated grouped handlers,
-  active `node_hostname` and `node_power` support, and the remaining
-  unsupported node request families.
 
 ### Removed
 
