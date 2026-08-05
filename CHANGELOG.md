@@ -27,6 +27,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Changed
 
+- Update `review-protocol` to revision `b0eae25` and adapt tests to its renamed
+  agent metadata field and public request APIs.
 - Simplified `list_files` to return only file names instead of unused size and
   modified-time data.
 
