@@ -1375,7 +1375,7 @@ mod tests {
         let search = ns
             .get("search")
             .expect("search key should still exist after delete");
-        assert!(addresses.is_empty());
+        assert_eq!(addresses.as_slice(), [] as [String; 0]);
         assert_eq!(search, &vec!["keep".to_string()]);
     }
 

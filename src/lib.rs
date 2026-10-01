@@ -670,7 +670,7 @@ mod tests {
     #[test]
     fn test_hostname_returns_non_empty() {
         let hostname = hostname();
-        assert!(!hostname.is_empty());
+        assert_ne!(hostname, "");
     }
 
     #[test]
