@@ -138,8 +138,8 @@ mod tests {
         let serialized = serde_json::to_string(&process).expect("serialize");
         let deserialized: Process = serde_json::from_str(&serialized).expect("deserialize");
 
-        assert!(deserialized.user.is_empty());
-        assert!(deserialized.command.is_empty());
+        assert_eq!(deserialized.user, "");
+        assert_eq!(deserialized.command, "");
     }
 
     #[tokio::test]
@@ -148,7 +148,7 @@ mod tests {
         assert!(!processes.is_empty());
 
         for process in &processes {
-            assert!(!process.command.is_empty());
+            assert_ne!(process.command, "");
             assert!(process.cpu_usage >= 0.0);
             assert!(process.mem_usage >= 0.0);
             assert!(process.start_time >= 0);

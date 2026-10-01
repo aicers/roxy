@@ -538,7 +538,7 @@ mod tests {
         };
 
         let parsed: Vec<String> = task.parse().expect("parse should succeed");
-        assert!(parsed.is_empty());
+        assert_eq!(parsed, [] as [String; 0]);
     }
 
     #[test]
@@ -750,7 +750,7 @@ mod tests {
         let result = response(&task, value).expect("response should succeed");
 
         let decoded: Vec<String> = decode_response(&result);
-        assert!(decoded.is_empty());
+        assert_eq!(decoded, [] as [String; 0]);
     }
 
     #[test]
