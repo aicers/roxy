@@ -65,9 +65,9 @@ impl Task {
         tracing::info!("task {self:?}");
         match self {
             #[cfg(target_os = "linux")]
-            Task::PowerOff(_) => self.poweroff(),
+            Task::PowerOff(_) => Self::poweroff(),
             #[cfg(target_os = "linux")]
-            Task::Reboot(_) => self.reboot(),
+            Task::Reboot(_) => Self::reboot(),
             Task::GracefulReboot(_) => self.graceful_reboot(),
             Task::GracefulPowerOff(_) => self.graceful_poweroff(),
             Task::Hostname { cmd, arg: _ } => self.hostname(*cmd),
@@ -82,17 +82,21 @@ impl Task {
     }
 
     #[cfg(target_os = "linux")]
-    fn reboot(&self) -> ExecResult {
-        nix::sys::reboot::reboot(nix::sys::reboot::RebootMode::RB_AUTOBOOT)
-            .map_err(|_| ERR_INVALID_COMMAND)?;
-        response(self, OKAY)
+    fn reboot() -> ExecResult {
+        // `reboot` does not return on success: its `Ok` holds `Infallible`.
+        match nix::sys::reboot::reboot(nix::sys::reboot::RebootMode::RB_AUTOBOOT) {
+            Ok(never) => match never {},
+            Err(_) => Err(ERR_INVALID_COMMAND),
+        }
     }
 
     #[cfg(target_os = "linux")]
-    fn poweroff(&self) -> ExecResult {
-        nix::sys::reboot::reboot(nix::sys::reboot::RebootMode::RB_POWER_OFF)
-            .map_err(|_| ERR_INVALID_COMMAND)?;
-        response(self, OKAY)
+    fn poweroff() -> ExecResult {
+        // `reboot` does not return on success: its `Ok` holds `Infallible`.
+        match nix::sys::reboot::reboot(nix::sys::reboot::RebootMode::RB_POWER_OFF) {
+            Ok(never) => match never {},
+            Err(_) => Err(ERR_INVALID_COMMAND),
+        }
     }
 
     fn graceful_reboot(&self) -> ExecResult {
